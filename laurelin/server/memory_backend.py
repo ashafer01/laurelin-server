@@ -1,6 +1,7 @@
 """
 In-memory ephemeral LDAP backend store
 """
+import re
 from laurelin.ldap.utils import CaseIgnoreDict
 from laurelin.ldap.constants import Scope
 
@@ -60,24 +61,28 @@ class LDAPObject(object):
             value = str(ava.getComponentByName('assertionValue'))
             return attr in self.attrs and value in self.attrs[attr]
         elif filter_type == 'substrings':
-            raise LDAPError('Substring filters not yet implemented')
-            #subs_obj = fil.getComponent()
-            #attr_type = str(subs_obj.getComponentByName('type'))
-            #subs = subs_obj.getComponentByName('substrings')
-            #n = len(subs)
-            #sub_name = ''
-            #sub_strs = []
-            #first_type = subs.getComponentByPosition(0).getName()
-            #if first_type != 'initial':
-            #    sub_strs.append('')
-            #for i in range(n):
-            #    sub_obj = subs.getComponentByPosition(i)
-            #    sub_name = sub_obj.getName()
-            #    sub_str = str(sub_obj.getComponent())
-            #    sub_strs.append(sub_str)
-            #if sub_name != 'final' and sub_strs[-1] != '':
-            #    sub_strs.append('')
-            #ret = '({0}={1})'.format(attr_type, '*'.join(sub_strs))
+            subs_obj = fil.getComponent()
+            attr_type = str(subs_obj.getComponentByName('type'))
+            if attr_type not in self.attrs:
+                return False
+            subs = subs_obj.getComponentByName('substrings')
+            n = len(subs)
+            sub_name = ''
+            sub_strs = []
+            first_type = subs.getComponentByPosition(0).getName()
+            if first_type != 'initial':
+                sub_strs.append('')
+            for i in range(n):
+                sub_obj = subs.getComponentByPosition(i)
+                sub_name = sub_obj.getName()
+                sub_str = str(sub_obj.getComponent())
+                sub_strs.append(sub_str)
+            if sub_name != 'final' and sub_strs[-1] != '':
+                sub_strs.append('')
+            for val in self.attrs[attr_type]:
+                if re.match('^' + '.*?'.join(sub_strs) + '$', val):
+                    return True
+            return False
         elif filter_type == 'greaterOrEqual':
             raise LDAPError('Greater or equal filters not yet implemented')
             #ava = fil.getComponent()

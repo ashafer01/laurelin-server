@@ -64,6 +64,11 @@ class TestMemoryBackend(unittest.TestCase):
             '(|(ghi=mno)(doesnotexist=foo))',
             '(!(foo=nope))',
             'NOT (foo=nope) AND (abc=def) AND (ghi=mno)',
+            '(foo=*)',
+            '(!(nope=*))',
+            '(foo=*ar)',
+            '(foo=ba*)',
+            '(foo=*a*)',
         ]
         for filter in pass_filters:
             with self.subTest('expected pass filter', filter=filter):
