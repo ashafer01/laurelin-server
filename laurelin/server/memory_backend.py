@@ -176,7 +176,7 @@ class MemoryBackend(object):
 
     def search(self, base_dn, scope, filter=None):
         if base_dn == '':
-            return self._root_dse
+            return [self._root_dse]
         base_obj = self._dit.get(base_dn)
         if scope == Scope.BASE:
             return [base_obj]
