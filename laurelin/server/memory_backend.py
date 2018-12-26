@@ -2,8 +2,9 @@
 In-memory ephemeral LDAP backend store
 """
 import re
-from laurelin.ldap.utils import CaseIgnoreDict
 from laurelin.ldap.constants import Scope
+from laurelin.ldap.protoutils import get_string_component
+from laurelin.ldap.utils import CaseIgnoreDict
 
 
 class LDAPError(Exception):
@@ -141,26 +142,22 @@ class LDAPObject(object):
         else:
             raise LDAPError('No such object')
 
-    def filter_children(self, filter=None):
+    def base_object(self, filter=None):
         if self.matches_filter(filter):
-            res = [self]
-        else:
-            res = []
+            yield self
+
+    def filter_children(self, filter=None):
+        yield from self.base_object(filter)
         for obj in self.children.values():
             if obj.matches_filter(filter):
-                res.append(obj)
-        return res
+                yield obj
 
     def subtree(self, filter=None):
-        if self.matches_filter(filter):
-            res = [self]
-        else:
-            res = []
+        yield from self.base_object(filter)
         for child in self.children.values():
             for obj in child.subtree():
                 if obj.matches_filter(filter):
-                    res.append(obj)
-        return res
+                    yield obj
 
 
 class MemoryBackend(object):
@@ -174,20 +171,44 @@ class MemoryBackend(object):
             'vendorName': ['laurelin'],
         })
 
-    def search(self, base_dn, scope, filter=None):
+    def search(self, search_request):
+        base_dn = get_string_component(search_request, 'baseObject')
+        scope = search_request.getComponentByName('scope')
+        filter = search_request.getComponentByName('filter') or None
+
+        # TODO implement all search parameters
+        #search_request.getComponentByName('derefAliases')
+        #search_request.getComponentByName('timeLimit')
+        #search_request.getComponentByName('typesOnly')
+
         if base_dn == '':
-            return [self._root_dse]
-        base_obj = self._dit.get(base_dn)
-        if scope == Scope.BASE:
-            return [base_obj]
-        elif scope == Scope.ONE:
-            return base_obj.filter_children(filter)
-        elif scope == Scope.SUB:
-            return base_obj.subtree(filter)
+            result_gen = [self._root_dse]
         else:
-            raise ValueError('scope')
+            base_obj = self._dit.get(base_dn)
+            if scope == Scope.BASE:
+                result_gen = base_obj.base_object(filter)
+            elif scope == Scope.ONE:
+                result_gen = base_obj.filter_children(filter)
+            elif scope == Scope.SUB:
+                result_gen = base_obj.subtree(filter)
+            else:
+                raise ValueError('scope')
+
+        _limit = search_request.getComponentByName('sizeLimit')
+        if _limit.isValue:
+            limit = int(_limit)
+        else:
+            limit = 0
+
+        if limit:
+            for _ in range(limit):
+                yield next(result_gen)
+        else:
+            yield from result_gen
 
     def add(self, dn, attrs=None):
         rdn, parent_dn = dn.split(',', 1)
         parent_obj = self._dit.get(parent_dn)
         parent_obj.add_child(rdn, attrs)
+
+    #def modify(self, dn, ):

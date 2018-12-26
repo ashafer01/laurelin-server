@@ -1,8 +1,22 @@
 import unittest
 import random
-from laurelin.server.memory_backend import MemoryBackend, LDAPObject
+
+from laurelin.ldap import rfc4511
 from laurelin.ldap.constants import Scope
 from laurelin.ldap.filter import parse
+
+from laurelin.server.memory_backend import MemoryBackend, LDAPObject
+
+
+def make_search_request(base_dn, scope, filter=None, limit=None):
+    req = rfc4511.SearchRequest()
+    req.setComponentByName('baseObject', rfc4511.LDAPDN(base_dn))
+    req.setComponentByName('scope', scope)
+    if filter:
+        req.setComponentByName('filter', parse(filter))
+    if limit is not None:
+        req.setComponentByName('sizeLimit', rfc4511.Integer0ToMax(limit))
+    return req
 
 
 class TestMemoryBackend(unittest.TestCase):
@@ -29,26 +43,26 @@ class TestMemoryBackend(unittest.TestCase):
                         mb.add(','.join((rdn2, rdn1, rdn0, suffix)))
 
         with self.subTest(dn=suffix):
-            mb.search(suffix, Scope.BASE)
+            list(mb.search(make_search_request(suffix, Scope.BASE)))
         for _ in range(10):
             rdn0 = random.choice(rdns)
             rdn1 = random.choice(rdns)
             rdn2 = random.choice(rdns)
             dn = ','.join((rdn2, rdn1, rdn0, suffix))
             with self.subTest(dn=dn):
-                mb.search(dn, Scope.BASE)
+                list(mb.search(make_search_request(dn, Scope.BASE)))
 
         with self.subTest('subtree'):
             rdn0 = random.choice(rdns)
             dn = ','.join((rdn0, suffix))
-            s = mb.search(dn, Scope.SUB)
+            s = list(mb.search(make_search_request(dn, Scope.SUB)))
             self.assertEqual(len(s), 91)
 
         with self.subTest('subtree level 2'):
             rdn0 = random.choice(rdns)
             rdn1 = random.choice(rdns)
             dn = ','.join((rdn1, rdn0, suffix))
-            s = mb.search(dn, Scope.SUB)
+            s = list(mb.search(make_search_request(dn, Scope.SUB)))
             self.assertEqual(len(s), 10)
 
     def test_matches_filter(self):
