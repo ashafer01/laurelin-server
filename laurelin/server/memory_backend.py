@@ -80,8 +80,9 @@ class LDAPObject(object):
                 sub_strs.append(sub_str)
             if sub_name != 'final' and sub_strs[-1] != '':
                 sub_strs.append('')
+            pattern = '^' + '.*?'.join(sub_strs) + '$'
             for val in self.attrs[attr_type]:
-                if re.match('^' + '.*?'.join(sub_strs) + '$', val):
+                if re.match(pattern, val, flags=re.IGNORECASE):
                     return True
             return False
         elif filter_type == 'greaterOrEqual':
@@ -123,7 +124,7 @@ class LDAPObject(object):
 
             #ret = '({0}{1}{2}:={3})'.format(attr, dn_attrs, rule, value)
         else:
-            raise LDAPError('Unhandled condition while constructing filter string')
+            raise LDAPError(f'Non-standard filter type "{filter_type}" in search request is unhandled')
 
     def add_child(self, rdn, attrs=None):
         self.children[rdn] = LDAPObject(rdn, attrs)
@@ -144,18 +145,18 @@ class LDAPObject(object):
 
     def base_object(self, filter=None):
         if self.matches_filter(filter):
-            yield self
+            return self
 
-    def filter_children(self, filter=None):
-        yield from self.base_object(filter)
+    async def filter_children(self, filter=None):
+        yield self.base_object(filter)
         for obj in self.children.values():
             if obj.matches_filter(filter):
                 yield obj
 
-    def subtree(self, filter=None):
-        yield from self.base_object(filter)
+    async def subtree(self, filter=None):
+        yield self.base_object(filter)
         for child in self.children.values():
-            for obj in child.subtree():
+            async for obj in child.subtree():
                 if obj.matches_filter(filter):
                     yield obj
 
@@ -171,10 +172,18 @@ class MemoryBackend(object):
             'vendorName': ['laurelin'],
         })
 
-    def search(self, search_request):
+    async def search(self, search_request):
         base_dn = get_string_component(search_request, 'baseObject')
         scope = search_request.getComponentByName('scope')
         filter = search_request.getComponentByName('filter') or None
+
+        _limit = search_request.getComponentByName('sizeLimit')
+        if _limit.isValue:
+            limit = int(_limit)
+            if limit == 0:
+                return
+        else:
+            limit = None
 
         # TODO implement all search parameters
         #search_request.getComponentByName('derefAliases')
@@ -186,7 +195,8 @@ class MemoryBackend(object):
         else:
             base_obj = self._dit.get(base_dn)
             if scope == Scope.BASE:
-                result_gen = base_obj.base_object(filter)
+                yield base_obj.base_object(filter)
+                return
             elif scope == Scope.ONE:
                 result_gen = base_obj.filter_children(filter)
             elif scope == Scope.SUB:
@@ -194,21 +204,47 @@ class MemoryBackend(object):
             else:
                 raise ValueError('scope')
 
-        _limit = search_request.getComponentByName('sizeLimit')
-        if _limit.isValue:
-            limit = int(_limit)
-        else:
-            limit = 0
+        n = 0
+        async for item in result_gen:
+            yield item
+            n += 1
+            if limit and n >= limit:
+                break
 
-        if limit:
-            for _ in range(limit):
-                yield next(result_gen)
-        else:
-            yield from result_gen
+    def compare(self, compare_request):
+        dn = str(compare_request.getComponentByName('entry'))
+        ava = compare_request.getComponentByName('ava')
+        attr_type = str(ava.getComponentByName('attributeDesc'))
+        attr_value = str(ava.getComponentByName('assertionValue'))
 
-    def add(self, dn, attrs=None):
+        obj = self._dit.get(dn)
+        return attr_type in obj.attrs and attr_value in obj.attrs[attr_type]
+
+    def add(self, add_request):
+        dn = str(add_request.getComponentByName('entry'))
+        al = add_request.getComponentByName('attributes')
+        attrs = {}
+        for i in range(len(al)):
+            attr = al.getComponentByPosition(i)
+            attr_type = str(attr.getComponentByName('type'))
+            attr_vals = []
+            vals = attr.getComponentByName('vals')
+            for j in range(len(vals)):
+                attr_vals.append(str(vals.getComponentByPosition(j)))
+            attrs[attr_type] = attr_vals
+
         rdn, parent_dn = dn.split(',', 1)
         parent_obj = self._dit.get(parent_dn)
         parent_obj.add_child(rdn, attrs)
 
-    #def modify(self, dn, ):
+    def delete(self, delete_request):
+        # TODO
+        pass
+
+    def modify(self, modify_request):
+        # TODO
+        pass
+
+    def mod_dn(self, mod_dn_request):
+        # TODO
+        pass

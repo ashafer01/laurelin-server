@@ -1,5 +1,6 @@
-import unittest
+import asyncio
 import random
+import unittest
 
 from laurelin.ldap import rfc4511
 from laurelin.ldap.constants import Scope
@@ -19,51 +20,93 @@ def make_search_request(base_dn, scope, filter=None, limit=None):
     return req
 
 
+def make_add_request(dn, attrs=None):
+    req = rfc4511.AddRequest()
+    req.setComponentByName('entry', rfc4511.LDAPDN(dn))
+    al = rfc4511.AttributeList()
+    if attrs:
+        i = 0
+        for attr_type, attr_vals in attrs.items():
+            attr = rfc4511.Attribute()
+            attr.setComponentByName('type', rfc4511.AttributeDescription(attr_type))
+            vals = rfc4511.Vals()
+            j = 0
+            for val in attr_vals:
+                vals.setComponentByPosition(j, rfc4511.AttributeValue(val))
+                j += 1
+            attr.setComponentByName('vals', vals)
+            al.setComponentByPosition(i, attr)
+            i += 1
+    req.setComponentByName('attributes', al)
+    return req
+
+
+async def asynclist(awaitable):
+    ret = []
+    async for i in awaitable:
+        ret.append(i)
+    return ret
+
+
 class TestMemoryBackend(unittest.TestCase):
+    def setUp(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(None)
+
     def test_add_search(self):
-        suffix = 'cn=test'
-        mb = MemoryBackend(suffix)
+        async def run_test():
+            suffix = 'cn=test'
+            mb = MemoryBackend(suffix)
 
-        alpha0 = 'abcdefghijklmnopqrstuvwxyz'
-        alpha1 = 'bcdefghijklmnopqrstuvwxyza'
+            alpha0 = 'abcdefghijklmnopqrstuvwxyz'
+            alpha1 = 'bcdefghijklmnopqrstuvwxyza'
 
-        size = 3
-        rdns = []
-        for i in range(0, len(alpha0), size):
-            attr = alpha0[i:i+size]
-            val = alpha1[i:i+size]
-            rdns.append(attr + '=' + val)
+            size = 3
+            rdns = []
+            for i in range(0, len(alpha0), size):
+                attr = alpha0[i:i+size]
+                val = alpha1[i:i+size]
+                rdns.append(attr + '=' + val)
 
-        with self.subTest('populate tree'):
-            for rdn0 in rdns:
-                mb.add(','.join((rdn0, suffix)))
-                for rdn1 in rdns:
-                    mb.add(','.join((rdn1, rdn0, suffix)))
-                    for rdn2 in rdns:
-                        mb.add(','.join((rdn2, rdn1, rdn0, suffix)))
+            with self.subTest('populate tree'):
+                for rdn0 in rdns:
+                    mb.add(make_add_request(','.join((rdn0, suffix))))
+                    for rdn1 in rdns:
+                        mb.add(make_add_request(','.join((rdn1, rdn0, suffix))))
+                        for rdn2 in rdns:
+                            mb.add(make_add_request(','.join((rdn2, rdn1, rdn0, suffix))))
 
-        with self.subTest(dn=suffix):
-            list(mb.search(make_search_request(suffix, Scope.BASE)))
-        for _ in range(10):
-            rdn0 = random.choice(rdns)
-            rdn1 = random.choice(rdns)
-            rdn2 = random.choice(rdns)
-            dn = ','.join((rdn2, rdn1, rdn0, suffix))
-            with self.subTest(dn=dn):
-                list(mb.search(make_search_request(dn, Scope.BASE)))
+            with self.subTest(dn=suffix):
+                await asynclist(mb.search(make_search_request(suffix, Scope.BASE)))
+            for _ in range(10):
+                rdn0 = random.choice(rdns)
+                rdn1 = random.choice(rdns)
+                rdn2 = random.choice(rdns)
+                dn = ','.join((rdn2, rdn1, rdn0, suffix))
+                with self.subTest(dn=dn):
+                    await asynclist(mb.search(make_search_request(dn, Scope.BASE)))
 
-        with self.subTest('subtree'):
-            rdn0 = random.choice(rdns)
-            dn = ','.join((rdn0, suffix))
-            s = list(mb.search(make_search_request(dn, Scope.SUB)))
-            self.assertEqual(len(s), 91)
+            with self.subTest('subtree'):
+                rdn0 = random.choice(rdns)
+                dn = ','.join((rdn0, suffix))
+                s = await asynclist(mb.search(make_search_request(dn, Scope.SUB)))
+                self.assertEqual(len(s), 91)
 
-        with self.subTest('subtree level 2'):
-            rdn0 = random.choice(rdns)
-            rdn1 = random.choice(rdns)
-            dn = ','.join((rdn1, rdn0, suffix))
-            s = list(mb.search(make_search_request(dn, Scope.SUB)))
-            self.assertEqual(len(s), 10)
+            with self.subTest('subtree with limit'):
+                limit = 17
+                rdn0 = random.choice(rdns)
+                dn = ','.join((rdn0, suffix))
+                s = await asynclist(mb.search(make_search_request(dn, Scope.SUB, limit=limit)))
+                self.assertEqual(len(s), limit)
+
+            with self.subTest('subtree level 2'):
+                rdn0 = random.choice(rdns)
+                rdn1 = random.choice(rdns)
+                dn = ','.join((rdn1, rdn0, suffix))
+                s = await asynclist(mb.search(make_search_request(dn, Scope.SUB)))
+                self.assertEqual(len(s), 10)
+
+        self.loop.run_until_complete(run_test())
 
     def test_matches_filter(self):
         obj = LDAPObject('cn=test', {
