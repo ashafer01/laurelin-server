@@ -6,9 +6,7 @@ from laurelin.ldap.constants import Scope
 from laurelin.ldap.protoutils import get_string_component
 from laurelin.ldap.utils import CaseIgnoreDict
 
-
-class LDAPError(Exception):
-    pass
+from .exceptions import LDAPError
 
 
 class LDAPObject(object):
