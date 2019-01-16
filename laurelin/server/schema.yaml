@@ -1,63 +1,76 @@
 attribute_types:
   aliasedObjectName:
     equality_rule: distinguishedNameMatch
+    name: aliasedObjectName
     oid: 2.5.4.1
     single_value: true
     syntax: 1.3.6.1.4.1.1466.115.121.1.12
   altServer:
     equality_rule: caseExactMatch
+    name: altServer
     oid: 1.3.6.1.4.1.1466.101.120.6
     syntax: 1.3.6.1.4.1.1466.115.121.1.26
     usage: dSAOperation
   associatedDomain:
     equality_rule: caseIgnoreIA5Match
+    name: associatedDomain
     oid: 0.9.2342.19200300.100.1.37
     substrings_rule: caseIgnoreIA5SubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.26
   associatedName:
     equality_rule: distinguishedNameMatch
+    name: associatedName
     oid: 0.9.2342.19200300.100.1.38
     syntax: 1.3.6.1.4.1.1466.115.121.1.12
   attributeTypes:
     equality_rule: objectIdentifierFirstComponentMatch
+    name: attributeTypes
     oid: 2.5.21.5
     syntax: 1.3.6.1.4.1.1466.115.121.1.3
     usage: directoryOperation
   audio:
     equality_rule: octetStringMatch
+    name: audio
     oid: 0.9.2342.19200300.100.1.55
     syntax: 1.3.6.1.4.1.1466.115.121.1.40{250000}
   buildingName:
     equality_rule: caseIgnoreMatch
+    name: buildingName
     oid: 0.9.2342.19200300.100.1.48
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   businessCategory:
     equality_rule: caseIgnoreMatch
+    name: businessCategory
     oid: 2.5.4.15
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   c:
     inherits: name
+    name: c
     oid: 2.5.4.6
     single_value: true
     syntax: 1.3.6.1.4.1.1466.115.121.1.11
   carLicense:
     description: vehicle license or registration plate
     equality_rule: caseIgnoreMatch
+    name: carLicense
     oid: 2.16.840.1.113730.3.1.1
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   cn:
     inherits: name
+    name: cn
     oid: 2.5.4.3
   co:
     equality_rule: caseIgnoreMatch
+    name: co
     oid: 0.9.2342.19200300.100.1.43
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   createTimestamp:
     equality_rule: generalizedTimeMatch
+    name: createTimestamp
     no_user_modification: true
     oid: 2.5.18.1
     ordering_rule: generalizedTimeOrderingMatch
@@ -66,6 +79,7 @@ attribute_types:
     usage: directoryOperation
   creatorsName:
     equality_rule: distinguishedNameMatch
+    name: creatorsName
     no_user_modification: true
     oid: 2.5.18.3
     single_value: true
@@ -73,16 +87,19 @@ attribute_types:
     usage: directoryOperation
   dITContentRules:
     equality_rule: objectIdentifierFirstComponentMatch
+    name: dITContentRules
     oid: 2.5.21.2
     syntax: 1.3.6.1.4.1.1466.115.121.1.16
     usage: directoryOperation
   dITStructureRules:
     equality_rule: integerFirstComponentMatch
+    name: dITStructureRules
     oid: 2.5.21.1
     syntax: 1.3.6.1.4.1.1466.115.121.1.17
     usage: directoryOperation
   dc:
     equality_rule: caseIgnoreIA5Match
+    name: dc
     oid: 0.9.2342.19200300.100.1.25
     single_value: true
     substrings_rule: caseIgnoreIA5SubstringsMatch
@@ -90,73 +107,87 @@ attribute_types:
   departmentNumber:
     description: identifies a department within an organization
     equality_rule: caseIgnoreMatch
+    name: departmentNumber
     oid: 2.16.840.1.113730.3.1.2
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   description:
     equality_rule: caseIgnoreMatch
+    name: description
     oid: 2.5.4.13
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   destinationIndicator:
     equality_rule: caseIgnoreMatch
+    name: destinationIndicator
     oid: 2.5.4.27
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.44
   displayName:
     description: preferred name of a person to be used when displaying entries
     equality_rule: caseIgnoreMatch
+    name: displayName
     oid: 2.16.840.1.113730.3.1.241
     single_value: true
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   distinguishedName:
     equality_rule: distinguishedNameMatch
+    name: distinguishedName
     oid: 2.5.4.49
     syntax: 1.3.6.1.4.1.1466.115.121.1.12
   dnQualifier:
     equality_rule: caseIgnoreMatch
+    name: dnQualifier
     oid: 2.5.4.46
     ordering_rule: caseIgnoreOrderingMatch
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.44
   documentAuthor:
     equality_rule: distinguishedNameMatch
+    name: documentAuthor
     oid: 0.9.2342.19200300.100.1.14
     syntax: 1.3.6.1.4.1.1466.115.121.1.12
   documentIdentifier:
     equality_rule: caseIgnoreMatch
+    name: documentIdentifier
     oid: 0.9.2342.19200300.100.1.11
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   documentLocation:
     equality_rule: caseIgnoreMatch
+    name: documentLocation
     oid: 0.9.2342.19200300.100.1.15
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   documentPublisher:
     equality_rule: caseIgnoreMatch
+    name: documentPublisher
     oid: 0.9.2342.19200300.100.1.56
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   documentTitle:
     equality_rule: caseIgnoreMatch
+    name: documentTitle
     oid: 0.9.2342.19200300.100.1.12
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   documentVersion:
     equality_rule: caseIgnoreMatch
+    name: documentVersion
     oid: 0.9.2342.19200300.100.1.13
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   drink:
     equality_rule: caseIgnoreMatch
+    name: drink
     oid: 0.9.2342.19200300.100.1.5
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   employeeNumber:
     description: numerically identifies an employee within an organization
     equality_rule: caseIgnoreMatch
+    name: employeeNumber
     oid: 2.16.840.1.113730.3.1.3
     single_value: true
     substrings_rule: caseIgnoreSubstringsMatch
@@ -164,23 +195,29 @@ attribute_types:
   employeeType:
     description: type of employment for a person
     equality_rule: caseIgnoreMatch
+    name: employeeType
     oid: 2.16.840.1.113730.3.1.4
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   enhancedSearchGuide:
+    name: enhancedSearchGuide
     oid: 2.5.4.47
     syntax: 1.3.6.1.4.1.1466.115.121.1.21
   facsimileTelephoneNumber:
+    name: facsimileTelephoneNumber
     oid: 2.5.4.23
     syntax: 1.3.6.1.4.1.1466.115.121.1.22
   generationQualifier:
     inherits: name
+    name: generationQualifier
     oid: 2.5.4.44
   givenName:
     inherits: name
+    name: givenName
     oid: 2.5.4.42
   governingStructureRule:
     equality_rule: integerMatch
+    name: governingStructureRule
     no_user_modification: true
     oid: 2.5.21.10
     single_value: true
@@ -188,83 +225,101 @@ attribute_types:
     usage: directoryOperation
   homePhone:
     equality_rule: telephoneNumberMatch
+    name: homePhone
     oid: 0.9.2342.19200300.100.1.20
     substrings_rule: telephoneNumberSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.50
   homePostalAddress:
     equality_rule: caseIgnoreListMatch
+    name: homePostalAddress
     oid: 0.9.2342.19200300.100.1.39
     substrings_rule: caseIgnoreListSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.41
   host:
     equality_rule: caseIgnoreMatch
+    name: host
     oid: 0.9.2342.19200300.100.1.9
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   houseIdentifier:
     equality_rule: caseIgnoreMatch
+    name: houseIdentifier
     oid: 2.5.4.51
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   info:
     equality_rule: caseIgnoreMatch
+    name: info
     oid: 0.9.2342.19200300.100.1.4
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{2048}
   initials:
     inherits: name
+    name: initials
     oid: 2.5.4.43
   internationalISDNNumber:
     equality_rule: numericStringMatch
+    name: internationalISDNNumber
     oid: 2.5.4.25
     substrings_rule: numericStringSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.36
   jpegPhoto:
     description: a JPEG image
+    name: jpegPhoto
     oid: 0.9.2342.19200300.100.1.60
     syntax: 1.3.6.1.4.1.1466.115.121.1.28
   l:
     inherits: name
+    name: l
     oid: 2.5.4.7
   labeledURI:
     equality_rule: caseExactMatch
+    name: labeledURI
     oid: 1.3.6.1.4.1.250.1.57
     substrings_rule: caseExactSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   ldapSyntaxes:
     equality_rule: objectIdentifierFirstComponentMatch
+    name: ldapSyntaxes
     oid: 1.3.6.1.4.1.1466.101.120.16
     syntax: 1.3.6.1.4.1.1466.115.121.1.54
     usage: directoryOperation
   mail:
     equality_rule: caseIgnoreIA5Match
+    name: mail
     oid: 0.9.2342.19200300.100.1.3
     substrings_rule: caseIgnoreIA5SubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.26{256}
   manager:
     equality_rule: distinguishedNameMatch
+    name: manager
     oid: 0.9.2342.19200300.100.1.10
     syntax: 1.3.6.1.4.1.1466.115.121.1.12
   matchingRuleUse:
     equality_rule: objectIdentifierFirstComponentMatch
+    name: matchingRuleUse
     oid: 2.5.21.8
     syntax: 1.3.6.1.4.1.1466.115.121.1.31
     usage: directoryOperation
   matchingRules:
     equality_rule: objectIdentifierFirstComponentMatch
+    name: matchingRules
     oid: 2.5.21.4
     syntax: 1.3.6.1.4.1.1466.115.121.1.30
     usage: directoryOperation
   member:
     inherits: distinguishedName
+    name: member
     oid: 2.5.4.31
   mobile:
     equality_rule: telephoneNumberMatch
+    name: mobile
     oid: 0.9.2342.19200300.100.1.41
     substrings_rule: telephoneNumberSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.50
   modifiersName:
     equality_rule: distinguishedNameMatch
+    name: modifiersName
     no_user_modification: true
     oid: 2.5.18.4
     single_value: true
@@ -272,6 +327,7 @@ attribute_types:
     usage: directoryOperation
   modifyTimestamp:
     equality_rule: generalizedTimeMatch
+    name: modifyTimestamp
     no_user_modification: true
     oid: 2.5.18.2
     ordering_rule: generalizedTimeOrderingMatch
@@ -280,127 +336,156 @@ attribute_types:
     usage: directoryOperation
   name:
     equality_rule: caseIgnoreMatch
+    name: name
     oid: 2.5.4.41
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   nameForms:
     equality_rule: objectIdentifierFirstComponentMatch
+    name: nameForms
     oid: 2.5.21.7
     syntax: 1.3.6.1.4.1.1466.115.121.1.35
     usage: directoryOperation
   namingContexts:
     equality_rule: distinguishedNameMatch
+    name: namingContexts
     oid: 1.3.6.1.4.1.1466.101.120.5
     syntax: 1.3.6.1.4.1.1466.115.121.1.12
     usage: dSAOperation
   o:
     inherits: name
+    name: o
     oid: 2.5.4.10
   objectClass:
     equality_rule: objectIdentifierMatch
+    name: objectClass
     oid: 2.5.4.0
     syntax: 1.3.6.1.4.1.1466.115.121.1.38
   objectClasses:
     equality_rule: objectIdentifierFirstComponentMatch
+    name: objectClasses
     oid: 2.5.21.6
     syntax: 1.3.6.1.4.1.1466.115.121.1.37
     usage: directoryOperation
   organizationalStatus:
     equality_rule: caseIgnoreMatch
+    name: organizationalStatus
     oid: 0.9.2342.19200300.100.1.45
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   ou:
     inherits: name
+    name: ou
     oid: 2.5.4.11
   owner:
     inherits: distinguishedName
+    name: owner
     oid: 2.5.4.32
   pager:
     equality_rule: telephoneNumberMatch
+    name: pager
     oid: 0.9.2342.19200300.100.1.42
     substrings_rule: telephoneNumberSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.50
   personalTitle:
     equality_rule: caseIgnoreMatch
+    name: personalTitle
     oid: 0.9.2342.19200300.100.1.40
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   photo:
     equality_rule: octetStringMatch
+    name: photo
     oid: 0.9.2342.19200300.100.1.7
     syntax: 1.3.6.1.4.1.1466.115.121.1.5
   physicalDeliveryOfficeName:
     equality_rule: caseIgnoreMatch
+    name: physicalDeliveryOfficeName
     oid: 2.5.4.19
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   postOfficeBox:
     equality_rule: caseIgnoreMatch
+    name: postOfficeBox
     oid: 2.5.4.18
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   postalAddress:
     equality_rule: caseIgnoreListMatch
+    name: postalAddress
     oid: 2.5.4.16
     substrings_rule: caseIgnoreListSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.41
   postalCode:
     equality_rule: caseIgnoreMatch
+    name: postalCode
     oid: 2.5.4.17
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   preferredDeliveryMethod:
+    name: preferredDeliveryMethod
     oid: 2.5.4.28
     single_value: true
     syntax: 1.3.6.1.4.1.1466.115.121.1.14
   preferredLanguage:
     description: preferred written or spoken language for a person
     equality_rule: caseIgnoreMatch
+    name: preferredLanguage
     oid: 2.16.840.1.113730.3.1.39
     single_value: true
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   registeredAddress:
     inherits: postalAddress
+    name: registeredAddress
     oid: 2.5.4.26
     syntax: 1.3.6.1.4.1.1466.115.121.1.41
   roleOccupant:
     inherits: distinguishedName
+    name: roleOccupant
     oid: 2.5.4.33
   roomNumber:
     equality_rule: caseIgnoreMatch
+    name: roomNumber
     oid: 0.9.2342.19200300.100.1.6
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   searchGuide:
+    name: searchGuide
     oid: 2.5.4.14
     syntax: 1.3.6.1.4.1.1466.115.121.1.25
   secretary:
     equality_rule: distinguishedNameMatch
+    name: secretary
     oid: 0.9.2342.19200300.100.1.21
     syntax: 1.3.6.1.4.1.1466.115.121.1.12
   seeAlso:
     inherits: distinguishedName
+    name: seeAlso
     oid: 2.5.4.34
   serialNumber:
     equality_rule: caseIgnoreMatch
+    name: serialNumber
     oid: 2.5.4.5
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.44
   sn:
     inherits: name
+    name: sn
     oid: 2.5.4.4
   st:
     inherits: name
+    name: st
     oid: 2.5.4.8
   street:
     equality_rule: caseIgnoreMatch
+    name: street
     oid: 2.5.4.9
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   structuralObjectClass:
     equality_rule: objectIdentifierMatch
+    name: structuralObjectClass
     no_user_modification: true
     oid: 2.5.21.9
     single_value: true
@@ -408,6 +493,7 @@ attribute_types:
     usage: directoryOperation
   subschemaSubentry:
     equality_rule: distinguishedNameMatch
+    name: subschemaSubentry
     no_user_modification: true
     oid: 2.5.18.10
     single_value: true
@@ -415,84 +501,103 @@ attribute_types:
     usage: directoryOperation
   supportedControl:
     equality_rule: objectIdentifierMatch
+    name: supportedControl
     oid: 1.3.6.1.4.1.1466.101.120.13
     syntax: 1.3.6.1.4.1.1466.115.121.1.38
     usage: dSAOperation
   supportedExtension:
     equality_rule: objectIdentifierMatch
+    name: supportedExtension
     oid: 1.3.6.1.4.1.1466.101.120.7
     syntax: 1.3.6.1.4.1.1466.115.121.1.38
     usage: dSAOperation
   supportedFeatures:
     equality_rule: objectIdentifierMatch
+    name: supportedFeatures
     oid: 1.3.6.1.4.1.4203.1.3.5
     syntax: 1.3.6.1.4.1.1466.115.121.1.38
     usage: dSAOperation
   supportedLDAPVersion:
     equality_rule: integerMatch
+    name: supportedLDAPVersion
     oid: 1.3.6.1.4.1.1466.101.120.15
     syntax: 1.3.6.1.4.1.1466.115.121.1.27
     usage: dSAOperation
   supportedSASLMechanisms:
     equality_rule: caseIgnoreMatch
+    name: supportedSASLMechanisms
     oid: 1.3.6.1.4.1.1466.101.120.14
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
     usage: dSAOperation
   telephoneNumber:
     equality_rule: telephoneNumberMatch
+    name: telephoneNumber
     oid: 2.5.4.20
     substrings_rule: telephoneNumberSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.50
   teletexTerminalIdentifier:
+    name: teletexTerminalIdentifier
     oid: 2.5.4.22
     syntax: 1.3.6.1.4.1.1466.115.121.1.51
   telexNumber:
+    name: telexNumber
     oid: 2.5.4.21
     syntax: 1.3.6.1.4.1.1466.115.121.1.52
   title:
     inherits: name
+    name: title
     oid: 2.5.4.12
   uid:
     equality_rule: caseIgnoreMatch
+    name: uid
     oid: 0.9.2342.19200300.100.1.1
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
   uniqueIdentifier:
     equality_rule: caseIgnoreMatch
+    name: uniqueIdentifier
     oid: 0.9.2342.19200300.100.1.44
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   uniqueMember:
     equality_rule: uniqueMemberMatch
+    name: uniqueMember
     oid: 2.5.4.50
     syntax: 1.3.6.1.4.1.1466.115.121.1.34
   userCertificate:
+    name: userCertificate
     oid: 2.5.4.36
     syntax: 1.3.6.1.4.1.1466.115.121.1.8
   userClass:
     equality_rule: caseIgnoreMatch
+    name: userClass
     oid: 0.9.2342.19200300.100.1.8
     substrings_rule: caseIgnoreSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.15{256}
   userPKCS12:
     description: 'PKCS #12 PFX PDU for exchange of personal identity information'
+    name: userPKCS12
     oid: 2.16.840.1.113730.3.1.216
     syntax: 1.3.6.1.4.1.1466.115.121.1.5
   userPassword:
     equality_rule: octetStringMatch
+    name: userPassword
     oid: 2.5.4.35
     syntax: 1.3.6.1.4.1.1466.115.121.1.40
   userSMIMECertificate:
     description: PKCS#7 SignedData used to support S/MIME
+    name: userSMIMECertificate
     oid: 2.16.840.1.113730.3.1.40
     syntax: 1.3.6.1.4.1.1466.115.121.1.5
   x121Address:
     equality_rule: numericStringMatch
+    name: x121Address
     oid: 2.5.4.24
     substrings_rule: numericStringSubstringsMatch
     syntax: 1.3.6.1.4.1.1466.115.121.1.36
   x500UniqueIdentifier:
     equality_rule: bitStringMatch
+    name: x500UniqueIdentifier
     oid: 2.5.4.45
     syntax: 1.3.6.1.4.1.1466.115.121.1.6
 object_classes:
@@ -505,12 +610,14 @@ object_classes:
     - ou
     - host
     inherits: top
+    name: account
     oid: 0.9.2342.19200300.100.4.5
     required_attributes:
     - uid
     type: structural
   alias:
     inherits: top
+    name: alias
     oid: 2.5.6.1
     required_attributes:
     - aliasedObjectName
@@ -522,6 +629,7 @@ object_classes:
     - l
     - description
     inherits: top
+    name: applicationProcess
     oid: 2.5.6.11
     required_attributes:
     - cn
@@ -531,12 +639,14 @@ object_classes:
     - searchGuide
     - description
     inherits: top
+    name: country
     oid: 2.5.6.2
     required_attributes:
     - c
     type: structural
   dcObject:
     inherits: top
+    name: dcObject
     oid: 1.3.6.1.4.1.1466.344
     required_attributes:
     - dc
@@ -551,6 +661,7 @@ object_classes:
     - l
     - description
     inherits: top
+    name: device
     oid: 2.5.6.14
     required_attributes:
     - cn
@@ -569,6 +680,7 @@ object_classes:
     - documentLocation
     - documentPublisher
     inherits: top
+    name: document
     oid: 0.9.2342.19200300.100.4.6
     required_attributes:
     - documentIdentifier
@@ -582,6 +694,7 @@ object_classes:
     - seeAlso
     - telephonenumber
     inherits: top
+    name: documentSeries
     oid: 0.9.2342.19200300.100.4.9
     required_attributes:
     - cn
@@ -612,22 +725,26 @@ object_classes:
     - o
     - associatedName
     inherits: top
+    name: domain
     oid: 0.9.2342.19200300.100.4.13
     required_attributes:
     - dc
     type: structural
   domainRelatedObject:
     inherits: top
+    name: domainRelatedObject
     oid: 0.9.2342.19200300.100.4.17
     required_attributes:
     - associatedDomain
     type: auxiliary
   extensibleObject:
     inherits: top
+    name: extensibleObject
     oid: 1.3.6.1.4.1.1466.101.120.111
     type: auxiliary
   friendlyCountry:
     inherits: country
+    name: friendlyCountry
     oid: 0.9.2342.19200300.100.4.18
     required_attributes:
     - co
@@ -641,6 +758,7 @@ object_classes:
     - o
     - description
     inherits: top
+    name: groupOfNames
     oid: 2.5.6.9
     required_attributes:
     - member
@@ -655,6 +773,7 @@ object_classes:
     - o
     - description
     inherits: top
+    name: groupOfUniqueNames
     oid: 2.5.6.17
     required_attributes:
     - uniqueMember
@@ -711,6 +830,7 @@ object_classes:
     - userPassword
     - x121Address
     inherits: organizationalPerson
+    name: inetOrgPerson
     oid: 2.16.840.1.113730.3.2.2
     required_attributes:
     - cn
@@ -726,6 +846,7 @@ object_classes:
     - l
     - description
     inherits: top
+    name: locality
     oid: 2.5.6.3
     type: structural
   organization:
@@ -752,6 +873,7 @@ object_classes:
     - l
     - description
     inherits: top
+    name: organization
     oid: 2.5.6.4
     required_attributes:
     - o
@@ -777,6 +899,7 @@ object_classes:
     - st
     - l
     inherits: person
+    name: organizationalPerson
     oid: 2.5.6.7
     type: structural
   organizationalRole:
@@ -803,6 +926,7 @@ object_classes:
     - l
     - description
     inherits: top
+    name: organizationalRole
     oid: 2.5.6.8
     required_attributes:
     - cn
@@ -831,6 +955,7 @@ object_classes:
     - userPassword
     - x121Address
     inherits: top
+    name: organizationalUnit
     oid: 2.5.6.5
     required_attributes:
     - ou
@@ -842,6 +967,7 @@ object_classes:
     - seeAlso
     - description
     inherits: top
+    name: person
     oid: 2.5.6.6
     required_attributes:
     - sn
@@ -868,6 +994,7 @@ object_classes:
     - telexNumber
     - x121Address
     inherits: domain
+    name: rFC822localPart
     oid: 0.9.2342.19200300.100.4.14
     type: structural
   residentialPerson:
@@ -891,6 +1018,7 @@ object_classes:
     - st
     - l
     inherits: person
+    name: residentialPerson
     oid: 2.5.6.10
     required_attributes:
     - l
@@ -902,12 +1030,14 @@ object_classes:
     - seeAlso
     - telephoneNumber
     inherits: top
+    name: room
     oid: 0.9.2342.19200300.100.4.7
     required_attributes:
     - cn
     type: structural
   simpleSecurityObject:
     inherits: top
+    name: simpleSecurityObject
     oid: 0.9.2342.19200300.100.4.19
     required_attributes:
     - userPassword
@@ -921,15 +1051,18 @@ object_classes:
     - attributeTypes
     - matchingRules
     - matchingRuleUse
+    name: subschema
     oid: 2.5.20.1
     type: auxiliary
   top:
+    name: top
     oid: 2.5.6.0
     required_attributes:
     - objectClass
     type: abstract
   uidObject:
     inherits: top
+    name: uidObject
     oid: 1.3.6.1.1.3.1
     required_attributes:
     - uid

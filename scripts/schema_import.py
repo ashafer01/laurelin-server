@@ -94,6 +94,7 @@ def format_object_class(element):
             break
         if token == 'NAME':
             name = tokens.popleft()
+            params['name'] = name
         elif token == 'DESC':
             params['description'] = tokens.popleft()
         elif token == 'OBSOLETE':
@@ -145,6 +146,7 @@ def format_attribute_type(element):
             break
         if token == 'NAME':
             name = tokens.popleft()
+            params['name'] = name
         elif token == 'DESC':
             params['description'] = tokens.popleft()
         elif token == 'OBSOLETE':
