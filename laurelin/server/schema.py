@@ -1,12 +1,14 @@
 import os.path
+import re
+import string
 
 from collections import defaultdict
 from glob import glob
 
 import yaml
 
-from laurelin.ldap import rfc4512
-from laurelin.ldap.utils import CaseIgnoreDict, re_anchor
+from laurelin.ldap import rfc4512, rfc4514, rfc4517
+from laurelin.ldap.utils import CaseIgnoreDict, re_anchor, escaped_regex
 
 from .exceptions import LDAPError, SchemaValidationError
 
@@ -91,8 +93,67 @@ class MatchingRule(SchemaElement):
     pass
 
 
+class FormatFunction:
+    """Allows things like {escape[\\*]} to be enabled in syntax regexes"""
+
+    def __init__(self, f):
+        self.func = f
+
+    def __getitem__(self, item):
+        return self.func(item)
+
+
+_regex_repetition = re.compile(r'^[0-9,]+$')
+
+
+class SyntaxRegexFormatter(string.Formatter):
+    def __init__(self, subpatterns: dict = None):
+        self._extra_kwargs = {
+            'rfc4512': rfc4512,
+            'rfc4514': rfc4514,
+            'rfc4517': rfc4517,
+            'escape': FormatFunction(escaped_regex)
+        }
+        if subpatterns is not None:
+            self._extra_kwargs.update(subpatterns)
+
+    def add_subpattern(self, name, pattern):
+        self._extra_kwargs[name] = pattern
+
+    def parse(self, format_string):
+        for tpl in string.Formatter.parse(self, format_string):
+            literal_text, field_name, _, _ = tpl
+            if field_name:
+                if _regex_repetition.match(field_name):
+                    literal_text += '{' + field_name + '}'
+                    yield literal_text, None, None, None
+                else:
+                    yield tpl
+            else:
+                yield tpl
+
+    def vformat(self, format_string, args, kwargs):
+        kwargs.update(self._extra_kwargs)
+        return string.Formatter.vformat(self, format_string, args, kwargs)
+
+
 class SyntaxRule(SchemaElement):
-    pass
+    def __init__(self, params: dict):
+        SchemaElement.__init__(self, params)
+        if 'regex' in params:
+            self.formatter = SyntaxRegexFormatter()
+            if 'subpatterns' in params:
+                for name, pattern in params['subpatterns'].items():
+                    formatted_pattern = self.formatter.format(pattern)
+                    self.formatter.add_subpattern(name, formatted_pattern)
+            self._re = re.compile(self.formatter.format(params['regex']))
+            self._validate = self._re.match
+        else:
+            raise LDAPError('Syntax implementation unknown / not yet implemented')
+
+    def validate(self, value):
+        if not self._validate(value):
+            raise SchemaValidationError(f'"{value}" is not a valid {self["desc"]}')
 
 
 class Schema:
