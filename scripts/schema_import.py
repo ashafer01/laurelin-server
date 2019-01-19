@@ -16,7 +16,7 @@ import yaml
 
 
 def prepare_input_schema(schema):
-    schema = re.sub('(\n|\r|\r\n) *', ' ', schema)
+    schema = re.sub('\s+', ' ', schema)
     schema = schema.strip()
     return schema
 
@@ -94,7 +94,6 @@ def format_object_class(element):
             break
         if token == 'NAME':
             name = tokens.popleft()
-            params['name'] = name
         elif token == 'DESC':
             params['description'] = tokens.popleft()
         elif token == 'OBSOLETE':

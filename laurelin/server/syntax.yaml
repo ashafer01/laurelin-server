@@ -49,20 +49,20 @@ syntax_rules:
     peg: |
       enhanced_guide = object_class SHARP WSP criteria WSP SHARP WSP subset
       object_class   = WSP oid WSP
-      subset         = ~"base(object)?"i / ~"one(level)?"i / ~"(whole)?sub(tree)?"i
+      subset         = ~"base(object)?|one(level)?|(whole)?sub(tree)?"i
       criteria       = and_term ( BAR and_term )*
       and_term       = term ( AMPERSAND term )*
       term           = EXCLAIM term / oid DOLLAR match_type / LPAREN criteria RPAREN / true / false
-      match_type     = "EQ" / "SUBSTR" / "GE" / "LE" / "APPROX"
+      match_type     = ~"EQ|SUBSTR|GE|LE|APPROX"i
       true           = "?true"
       false          = "?false"
 
-      oid         = descr / numericoid
-      descr       = keystring
-      numericoid  = number ( DOT number )+
-      keystring   = ALPHA keychar*
-      keychar     = ALPHA / DIGIT / HYPHEN
-      number      = DIGIT / ( LDIGIT DIGIT* )
+      oid        = descr / numericoid
+      descr      = keystring
+      numericoid = number ( DOT number )+
+      keystring  = ALPHA keychar*
+      keychar    = ALPHA / DIGIT / HYPHEN
+      number     = DIGIT / ( LDIGIT DIGIT* )
 
       ALPHA     = ~"[A-Za-z]"
       DIGIT     = ~"[0-9]"

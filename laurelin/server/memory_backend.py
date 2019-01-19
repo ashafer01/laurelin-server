@@ -7,6 +7,7 @@ from laurelin.ldap.protoutils import get_string_component
 from laurelin.ldap.utils import CaseIgnoreDict
 
 from .exceptions import LDAPError
+from .schema import schema
 
 
 class LDAPObject(object):
@@ -28,6 +29,12 @@ class LDAPObject(object):
                 attrs[rdn_attr] = [rdn_val]
             elif rdn_val not in attrs[rdn_attr]:
                 attrs[rdn_attr].append(rdn_val)
+
+        if 'objectClass' in attrs:
+            oc = schema.get_object_class('top')
+            for oc_name in attrs['objectClass']:
+                oc = oc.merge(oc_name)
+            self.object_class = oc
 
         self.rdn = rdn
 
