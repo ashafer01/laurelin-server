@@ -7,29 +7,19 @@ from glob import glob
 
 import yaml
 
+from parsimonious.grammar import Grammar
+from parsimonious.exceptions import ParseError
+
 from laurelin.ldap import rfc4512, rfc4514, rfc4517
 from laurelin.ldap.utils import CaseIgnoreDict, re_anchor, escaped_regex
 
-from .exceptions import LDAPError, SchemaValidationError
+from .exceptions import *
 
 # TODO make this an env var / CLI startup parameter
 _schema_dir = os.path.expanduser('~/etc/laurelin/server/schema.d')
 
 
-def _element_getter(key, cls):
-    def get_element(self, ident):
-        if ident[0].isdigit():
-            dct = self._oids
-        else:
-            dct = self._schema[key]
-        o = dct[ident]
-        if isinstance(o, dict):
-            dct[ident] = cls(o)
-        return dct[ident]
-    return get_element
-
-
-class SchemaElement:
+class BaseSchemaElement:
     def __init__(self, params):
         self._params = params
 
@@ -37,16 +27,16 @@ class SchemaElement:
         return self._params[item]
 
 
-class AttributeType(SchemaElement):
+class AttributeType(BaseSchemaElement):
     def __init__(self, params):
         if 'usage' not in params:
             params['usage'] = 'userApplications'
-        SchemaElement.__init__(self, params)
+        BaseSchemaElement.__init__(self, params)
 
 
-class ObjectClass(SchemaElement):
+class ObjectClass(BaseSchemaElement):
     def __init__(self, params):
-        SchemaElement.__init__(self, params)
+        BaseSchemaElement.__init__(self, params)
         self.required_attrs = {attr.lower() for attr in self['required_attributes']}
         self.allowed_attrs = {attr.lower() for attr in self['allowed_attributes']}
 
@@ -71,9 +61,9 @@ class ObjectClass(SchemaElement):
         # TODO validate values against AttributeTypes
 
 
-class ExtensibleObjectClass(SchemaElement):
+class ExtensibleObjectClass(BaseSchemaElement):
     def __init__(self):
-        SchemaElement.__init__(self, {
+        BaseSchemaElement.__init__(self, {
             'oid': '1.3.6.1.4.1.1466.101.120.111',
             'name': 'extensibleObject',
             'inherits': 'top',
@@ -89,7 +79,7 @@ class ExtensibleObjectClass(SchemaElement):
         # TODO validate values against AttributeTypes
 
 
-class MatchingRule(SchemaElement):
+class MatchingRule(BaseSchemaElement):
     pass
 
 
@@ -107,15 +97,13 @@ _regex_repetition = re.compile(r'^[0-9,]+$')
 
 
 class SyntaxRegexFormatter(string.Formatter):
-    def __init__(self, subpatterns: dict = None):
+    def __init__(self):
         self._extra_kwargs = {
             'rfc4512': rfc4512,
             'rfc4514': rfc4514,
             'rfc4517': rfc4517,
             'escape': FormatFunction(escaped_regex)
         }
-        if subpatterns is not None:
-            self._extra_kwargs.update(subpatterns)
 
     def add_subpattern(self, name, pattern):
         self._extra_kwargs[name] = pattern
@@ -137,23 +125,75 @@ class SyntaxRegexFormatter(string.Formatter):
         return string.Formatter.vformat(self, format_string, args, kwargs)
 
 
-class SyntaxRule(SchemaElement):
-    def __init__(self, params: dict):
-        SchemaElement.__init__(self, params)
-        if 'regex' in params:
-            self.formatter = SyntaxRegexFormatter()
-            if 'subpatterns' in params:
-                for name, pattern in params['subpatterns'].items():
-                    formatted_pattern = self.formatter.format(pattern)
-                    self.formatter.add_subpattern(name, formatted_pattern)
-            self._re = re.compile(self.formatter.format(params['regex']))
-            self._validate = self._re.match
-        else:
-            raise LDAPError('Syntax implementation unknown / not yet implemented')
-
+class BaseSyntaxRule(BaseSchemaElement):
     def validate(self, value):
-        if not self._validate(value):
+        try:
+            self.parse(value)
+        except SyntaxParseError:
             raise SchemaValidationError(f'"{value}" is not a valid {self["desc"]}')
+
+    def parse(self, value):
+        raise NotImplemented()
+
+
+class RegexSyntaxRule(BaseSyntaxRule):
+    def __init__(self, params: dict):
+        BaseSyntaxRule.__init__(self, params)
+        self.formatter = SyntaxRegexFormatter()
+        if 'subpatterns' in params:
+            for name, pattern in params['subpatterns'].items():
+                formatted_pattern = self.formatter.format(pattern)
+                self.formatter.add_subpattern(name, formatted_pattern)
+        self._re = re.compile(self.formatter.format(params['regex']))
+
+    def parse(self, value):
+        m = self._re.match(value)
+        if not m:
+            raise SyntaxParseError()
+        return m
+
+
+class PEGSyntaxRule(BaseSyntaxRule):
+    def __init__(self, params: dict):
+        BaseSyntaxRule.__init__(self, params)
+        self._grammar = Grammar(params['peg'])
+
+    def parse(self, value):
+        try:
+            return self._grammar.parse(value)
+        except ParseError:
+            raise SyntaxParseError()
+
+
+def SyntaxRule(params: dict):
+    if 'regex' in params:
+        return RegexSyntaxRule(params)
+    elif 'peg' in params:
+        return PEGSyntaxRule(params)
+    else:
+        raise LDAPError('Syntax implementation unknown / not yet implemented')
+
+
+kind_factories = {
+    'syntax_rules': SyntaxRule,
+    'matching_rules': MatchingRule,
+    'attribute_types': AttributeType,
+    'object_classes': ObjectClass,
+}
+
+
+def schema_element(kind, params):
+    return kind_factories[kind](params)
+
+
+def _element_getter(key):
+    def get_element(self, ident):
+        if ident[0].isdigit():
+            dct = self._oids
+        else:
+            dct = self._schema[key]
+        return dct[ident]
+    return get_element
 
 
 class Schema:
@@ -205,12 +245,13 @@ class Schema:
 
     def load_dict(self, data):
         for kind, elements in data.items():
-            for name, params in elements:
-                self._schema[kind][name] = params
+            for name, params in elements.items():
+                element = schema_element(kind, params)
+                self._schema[kind][name] = element
                 if 'oid' in params:
-                    self._oids[params['oid']] = params
+                    self._oids[params['oid']] = element
 
-    get_attribute_type = _element_getter('attribute_types', AttributeType)
-    get_object_class = _element_getter('object_classes', ObjectClass)
-    get_matching_rule = _element_getter('matching_rules', MatchingRule)
-    get_syntax_rule = _element_getter('syntax_rules', SyntaxRule)
+    get_attribute_type = _element_getter('attribute_types')
+    get_object_class = _element_getter('object_classes')
+    get_matching_rule = _element_getter('matching_rules')
+    get_syntax_rule = _element_getter('syntax_rules')

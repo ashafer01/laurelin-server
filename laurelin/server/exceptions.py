@@ -4,3 +4,7 @@ class LDAPError(Exception):
 
 class SchemaValidationError(LDAPError):
     pass
+
+
+class SyntaxParseError(LDAPError):
+    pass
