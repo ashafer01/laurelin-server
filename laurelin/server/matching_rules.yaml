@@ -1,0 +1,65 @@
+matching_rules:
+  bitStringMatch:
+    oid: 2.5.13.16
+    syntax: 1.3.6.1.4.1.1466.115.121.1.6
+    usage: equality
+  booleanMatch:
+    oid: 2.5.13.13
+    syntax: 1.3.6.1.4.1.1466.115.121.1.7
+    usage: equality
+  caseExactIA5Match:
+    oid: 1.3.6.1.4.1.1466.109.114.1
+    syntax: 1.3.6.1.4.1.1466.115.121.1.26
+    prep: case_exact
+    usage: equality
+  caseExactMatch:
+    oid: 2.5.13.5
+    syntax: 1.3.6.1.4.1.1466.115.121.1.15
+    prep: case_exact
+    usage: equality
+  caseExactOrderingMatch: # True: < / False: >=
+    oid: 2.5.13.6
+    syntax: 1.3.6.1.4.1.1466.115.121.1.15
+    prep: case_exact
+    usage: ordering
+  caseExactSubstringsMatch:
+    oid: 2.5.13.7
+    syntax: 1.3.6.1.4.1.1466.115.121.1.58
+    prep: case_exact
+    usage: substring
+  caseIgnoreIA5Match:
+    oid: 1.3.6.1.4.1.1466.109.114.2
+    syntax: 1.3.6.1.4.1.1466.115.121.1.26
+    prep: case_ignore
+    usage: equality
+  caseIgnoreIA5SubstringsMatch:
+    oid: 1.3.6.1.4.1.1466.109.114.3
+    syntax: 1.3.6.1.4.1.1466.115.121.1.58
+    prep: case_ignore
+    usage: substring
+  caseIgnoreListMatch:
+    oid: 2.5.13.11
+    syntax: 1.3.6.1.4.1.1466.115.121.1.41
+    prep: case_ignore
+    usage: equality
+  caseIgnoreListSubstringsMatch:
+    oid: 2.5.13.12
+    syntax: 1.3.6.1.4.1.1466.115.121.1.58
+    prep: case_ignore
+    usage: substring
+  caseIgnoreMatch:
+    oid: 2.5.13.2
+    syntax: 1.3.6.1.4.1.1466.115.121.1.15
+    prep: case_ignore
+    usage: equality
+  caseIgnoreOrderingMatch:
+    oid: 2.5.13.3
+    syntax: 1.3.6.1.4.1.1466.115.121.1.15
+    prep: case_ignore
+    usage: ordering
+  caseIgnoreSubstringsMatch:
+    oid: 2.5.13.4
+    syntax: 1.3.6.1.4.1.1466.115.121.1.58
+    prep: case_ignore
+    usage: substring
+
