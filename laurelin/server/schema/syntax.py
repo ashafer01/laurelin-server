@@ -7,7 +7,7 @@ from parsimonious.exceptions import ParseError
 from laurelin.ldap import rfc4512, rfc4514, rfc4517
 from laurelin.ldap.utils import escaped_regex
 
-from .base import BaseSchemaElement
+from .element import BaseSchemaElement
 from ..exceptions import *
 
 
@@ -103,7 +103,9 @@ def normalize_phone_number(value):
     s = re.sub('[^0-9+]', '', value)
 
     # remove leading +
+    has_plus = False
     if s.startswith('+'):
+        has_plus = True
         s = s[1:]
 
     # Should only have numbers now
@@ -114,6 +116,9 @@ def normalize_phone_number(value):
     l = len(s)
     if l < 7 or l > 15:
         return SchemaValidationError()
+
+    if has_plus:
+        s = '+' + s
 
     return s
 

@@ -3,11 +3,11 @@ In-memory ephemeral LDAP backend store
 """
 import re
 from laurelin.ldap.constants import Scope
-from laurelin.ldap.protoutils import get_string_component
+from laurelin.ldap.protoutils import get_string_component, split_unescaped
 from laurelin.ldap.utils import CaseIgnoreDict
 
 from .exceptions import LDAPError
-from .schema import schema
+from .schema.object_class import ObjectClass
 
 
 class LDAPObject(object):
@@ -21,7 +21,7 @@ class LDAPObject(object):
 
         if rdn != '':
             try:
-                rdn_attr, rdn_val = rdn.split('=', 1)
+                rdn_attr, rdn_val = split_unescaped(rdn, '=', 1)
             except ValueError:
                 raise ValueError('Invalid RDN')
 
@@ -31,15 +31,20 @@ class LDAPObject(object):
                 attrs[rdn_attr].append(rdn_val)
 
         if 'objectClass' in attrs:
-            oc = schema.get_object_class('top')
+            self.object_class = ObjectClass({'name': 'virtualMergedObjectClass', 'desc': 'Combined object classes'})
             for oc_name in attrs['objectClass']:
-                oc = oc.merge(oc_name)
-            self.object_class = oc
+                self.object_class.merge(oc_name)
+        else:
+            self.object_class = None
 
         self.rdn = rdn
 
         self.attrs = attrs
         self.children = {}
+
+    def validate(self):
+        if self.object_class:
+            self.object_class.validate(self.attrs)
 
     def matches_filter(self, fil):
         if fil is None:
@@ -132,7 +137,27 @@ class LDAPObject(object):
             raise LDAPError(f'Non-standard filter type "{filter_type}" in search request is unhandled')
 
     def add_child(self, rdn, attrs=None):
-        self.children[rdn] = LDAPObject(rdn, attrs)
+        obj = LDAPObject(rdn, attrs)
+        obj.validate()
+        self.add_child_ref(obj)
+
+    def add_child_ref(self, obj):
+        self.children[obj.rdn] = obj
+
+    def delete_child(self, rdn):
+        if not self.children[rdn].children:
+            self.del_child_ref(rdn)
+        else:
+            raise LDAPError('Object is non-leaf, cannot delete')
+
+    def del_child_ref(self, rdn):
+        del self.children[rdn]
+
+    def get_child(self, rdn):
+        try:
+            return self.children[rdn]
+        except KeyError:
+            raise LDAPError('No such object')
 
     def get(self, dn):
         suffix = ','+self.rdn
@@ -140,13 +165,33 @@ class LDAPObject(object):
             return self
         elif dn.endswith(suffix):
             dn = dn[0:-len(suffix)]
-            next_rdn = dn.split(',')[-1]
-            if next_rdn in self.children:
-                return self.children[next_rdn].get(dn)
-            else:
-                raise LDAPError('No such object')
+            next_rdn = split_unescaped(dn, ',')[-1]
+            next_obj = self.get_child(next_rdn)
+            return next_obj.get(dn)
         else:
             raise LDAPError('No such object')
+
+    def mod_rdn(self, rdn, new_rdn, del_old_rdn_attr):
+        if rdn == new_rdn:
+            return
+
+        obj = self.get_child(rdn)
+        self.del_child_ref(rdn)
+        self.children[new_rdn] = obj
+
+        if del_old_rdn_attr:
+            rdn_attr, rdn_val = split_unescaped(rdn, '=', 1)
+            self.delete_attr_value(rdn_attr, rdn_val)
+
+    def delete_attr_value(self, attr, value):
+        try:
+            attr = self.attrs[attr]
+        except KeyError:
+            return
+        try:
+            attr.remove(value)
+        except ValueError:
+            pass
 
     def base_object(self, filter=None):
         if self.matches_filter(filter):
@@ -225,6 +270,15 @@ class MemoryBackend(object):
         obj = self._dit.get(dn)
         return attr_type in obj.attrs and attr_value in obj.attrs[attr_type]
 
+    def modify(self, modify_request):
+        # TODO
+        pass
+
+    def _get_rdn_and_parent(self, dn):
+        rdn, parent_dn = split_unescaped(dn, ',', 1)
+        parent_obj = self._dit.get(parent_dn)
+        return rdn, parent_obj
+
     def add(self, add_request):
         dn = str(add_request.getComponentByName('entry'))
         al = add_request.getComponentByName('attributes')
@@ -238,18 +292,25 @@ class MemoryBackend(object):
                 attr_vals.append(str(vals.getComponentByPosition(j)))
             attrs[attr_type] = attr_vals
 
-        rdn, parent_dn = dn.split(',', 1)
-        parent_obj = self._dit.get(parent_dn)
+        rdn, parent_obj = self._get_rdn_and_parent(dn)
         parent_obj.add_child(rdn, attrs)
 
     def delete(self, delete_request):
-        # TODO
-        pass
-
-    def modify(self, modify_request):
-        # TODO
-        pass
+        dn = str(delete_request)
+        rdn, parent_obj = self._get_rdn_and_parent(dn)
+        parent_obj.delete_child(rdn)
 
     def mod_dn(self, mod_dn_request):
-        # TODO
-        pass
+        dn = str(mod_dn_request.getComponentByName('entry'))
+        new_rdn = str(mod_dn_request.getComponentByName('newrdn'))
+        del_old_rdn_attr = bool(mod_dn_request.getComponentByName('deleteoldrdn'))
+        _new_parent = mod_dn_request.getComponentByName('newSuperior')
+
+        rdn, parent_obj = self._get_rdn_and_parent(dn)
+        if _new_parent.isValue:
+            new_parent_obj = self._dit.get(str(_new_parent))
+            obj = parent_obj.get_child(rdn)
+            parent_obj.del_child_ref(rdn)
+            new_parent_obj.add_child_ref(obj)
+        else:
+            parent_obj.mod_rdn(rdn, new_rdn, del_old_rdn_attr)

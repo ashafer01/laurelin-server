@@ -1,4 +1,5 @@
-from .base import BaseSchemaElement, schema
+from .base import schema
+from .element import BaseSchemaElement
 from ..exceptions import *
 
 
@@ -6,18 +7,18 @@ class ObjectClass(BaseSchemaElement):
     def __init__(self, params):
         params.setdefault('obsolete', False)
         params.setdefault('type', 'structural')
+        params.setdefault('required_attributes', [])
+        params.setdefault('allowed_attributes', [])
         BaseSchemaElement.__init__(self, params)
         self.required_attrs = {attr.lower() for attr in self['required_attributes']}
         self.allowed_attrs = {attr.lower() for attr in self['allowed_attributes']}
         self.resolved = False
 
     def merge(self, object_class):
-        """Combine another ObjectClass with this one, returning a new ObjectClass"""
-        new_oc = ObjectClass(self._params)
+        """Combine another ObjectClass into this one"""
         other_oc = schema.get_object_class(object_class)
-        new_oc.required_attrs |= other_oc.required_attrs
-        new_oc.allowed_attrs |= other_oc.allowed_attrs
-        return new_oc
+        self.required_attrs |= other_oc.required_attrs
+        self.allowed_attrs |= other_oc.allowed_attrs
 
     def resolve(self):
         if not self.resolved and 'inherits' in self:

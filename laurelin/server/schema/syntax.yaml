@@ -144,8 +144,7 @@ syntax_rules:
     desc: 'Postal Address'
     regex: '^{line}(\${line})*$'
     subpatterns:
-      line_char: '{escape[\\$]}'
-      line: '{line_char}+'
+      line: '{escape[\\$]}+'
   printable_string:
     oid: '1.3.6.1.4.1.1466.115.121.1.44'
     desc: 'Printable String'
@@ -155,8 +154,7 @@ syntax_rules:
     desc: 'Substring Assertion'
     regex: '(?:{substring})?\*(?:{substring}\*)*(?:{substring})?'
     subpatterns:
-      substring_character: '{escape[\\*]}'
-      substring: '{substring_character}+'
+      substring: '{escape[\\*]}+'
   telephone_number:
     oid: '1.3.6.1.4.1.1466.115.121.1.50'
     desc: 'Telephone Number'

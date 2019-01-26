@@ -1,4 +1,5 @@
-from .base import BaseSchemaElement, schema
+from .base import schema
+from .element import BaseSchemaElement
 from ..exceptions import *
 
 

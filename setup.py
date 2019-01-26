@@ -35,4 +35,5 @@ setup(
     namespace_packages=['laurelin'],
     packages=find_packages(exclude=['tests']),
     install_requires=['laurelin-ldap'],
+    include_package_data=True,
 )
