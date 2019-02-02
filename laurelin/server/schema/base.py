@@ -18,42 +18,25 @@ _schema_dir = os.path.expanduser(os.path.join('~', 'etc', 'laurelin', 'server', 
 
 
 _kind_factories = {
-    'syntax_rules': ('syntax', 'SyntaxRule'),
-    'matching_rules': ('matching_rule', 'MatchingRule'),
-    'attribute_types': ('attribute_type', 'AttributeType'),
-    'object_classes': ('object_class', 'ObjectClass'),
+    'syntax_rules': ('.syntax', 'SyntaxRule'),
+    'matching_rules': ('.matching_rule', 'MatchingRule'),
+    'attribute_types': ('.attribute_type', 'AttributeType'),
+    'object_classes': ('.object_class', 'ObjectClass'),
 }
-
-_dynamic_classes = {
-    'SyntaxRule': 'syntax',
-    'AttributeType': 'attribute_type',
-    'ObjectClass': 'object_class',
-    'ExtensibleObjectClass': 'object_class',
-}
-
-
-def kind_factory(kind):
-    modname, classname = _kind_factories[kind]
-    mod = import_module('.' + modname, __spec__.parent)
-    return getattr(mod, classname)
-
-
-def dynamic_class(classname):
-    modname = _dynamic_classes[classname]
-    mod = import_module('.' + modname, __spec__.parent)
-    return getattr(mod, classname)
 
 
 def schema_element(kind, params):
-    return kind_factory(kind)(params)
+    modname, classname = _kind_factories[kind]
+    mod = import_module(modname, __package__)
+    return getattr(mod, classname)(params)
 
 
-def _element_getter(key):
+def _element_getter(kind):
     def get_element(self, ident):
         if ident[0].isdigit():
             dct = self._oids
         else:
-            dct = self._schema[key]
+            dct = self._schema[kind]
         return dct[ident]
     return get_element
 
@@ -63,28 +46,28 @@ class Schema(object):
         self._schema = defaultdict(CaseIgnoreDict)
         self._oids = {}
 
-        # These shall be the only 3 hard coded schema elements to enable special-casing extensibleObject
-        self._schema['syntax_rules']['oid'] = dynamic_class('SyntaxRule')({
+        # These shall be the only 4 hard coded schema elements to enable special-casing extensibleObject
+
+        self.load_element('syntax_rules', 'oid', {
             'oid': '1.3.6.1.4.1.1466.115.121.1.38',
-            'desc': 'OID',
-            'name': 'oid',
             'regex': re_anchor(rfc4512.oid),
         })
-        self._schema['attribute_type']['objectClass'] = dynamic_class('AttributeType')({
-            'equality_rule': 'objectIdentifierMatch',
-            'name': 'objectClass',
+        self.load_element('attribute_types', 'objectClass', {
             'desc': 'object class',
             'oid': '2.5.4.0',
-            'syntax': '1.3.6.1.4.1.1466.115.121.1.38'
+            'syntax': '1.3.6.1.4.1.1466.115.121.1.38',
+            'equality_rule': 'objectIdentifierMatch',
         })
-        self._schema['object_classes']['top'] = dynamic_class('ObjectClass')({
-            'name': 'top',
-            'desc': 'top',
+        self.load_element('object_classes', 'top', {
             'oid': '2.5.6.0',
             'required_attributes': ['objectClass'],
-            'type': 'abstract'
+            'type': 'abstract',
         })
-        self._schema['object_classes']['extensibleObject'] = dynamic_class('ExtensibleObjectClass')()
+
+        from .object_class import ExtensibleObjectClass
+        ext_oc = ExtensibleObjectClass()
+        self._schema['object_classes']['extensibleObject'] = ext_oc
+        self._oids[ext_oc.OID] = ext_oc
 
     def load(self):
         self.load_builtin()
@@ -116,18 +99,23 @@ class Schema(object):
     def load_dict(self, data):
         for kind, elements in data.items():
             for name, params in elements.items():
-                params.setdefault('name', name)
-                params.setdefault('desc', params['name'])
-                element = schema_element(kind, params)
-                self._schema[kind][name] = element
-                if 'oid' in params:
-                    self._oids[params['oid']] = element
+                self.load_element(kind, name, params)
+
+    def load_element(self, kind, name, params):
+        name = params.setdefault('name', name)
+        params.setdefault('desc', name)
+        element = schema_element(kind, params)
+        self._schema[kind][name] = element
+        try:
+            self._oids[params['oid']] = element
+        except KeyError:
+            pass
 
     def resolve(self):
         """Resolve all inheritance"""
         try:
-            for key in 'object_classes', 'attribute_types':
-                for obj in self._schema[key].values():
+            for kind in 'object_classes', 'attribute_types':
+                for obj in self._schema[kind].values():
                     obj.resolve()
         except KeyError:
             raise InvalidSchemaError('missing inherited schema element')
@@ -138,4 +126,11 @@ class Schema(object):
     get_syntax_rule = _element_getter('syntax_rules')
 
 
-schema = Schema()
+_schema = None
+
+
+def get_schema():
+    global _schema
+    if not _schema:
+        _schema = Schema()
+    return _schema

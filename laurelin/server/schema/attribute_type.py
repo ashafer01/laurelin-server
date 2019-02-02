@@ -1,4 +1,4 @@
-from .base import schema
+from .base import get_schema
 from .element import BaseSchemaElement
 from ..exceptions import *
 
@@ -16,10 +16,11 @@ class AttributeType(BaseSchemaElement):
         params.setdefault('usage', 'userApplications')
         BaseSchemaElement.__init__(self, params)
         self.resolved = False
+        self.schema = get_schema()
 
     def resolve(self):
         if not self.resolved and 'inherits' in self:
-            supertype = schema.get_attribute_type(self['inherits'])
+            supertype = self.schema.get_attribute_type(self['inherits'])
             supertype.resolve()
             for key in self._inherit_keys:
                 if key not in self:
@@ -29,7 +30,7 @@ class AttributeType(BaseSchemaElement):
     def validate(self, values):
         if self['single_value'] and len(values) > 1:
             raise SchemaValidationError(f'{self["name"]} is single-value')
-        syntax = schema.get_syntax_rule(self['syntax'])
+        syntax = self.schema.get_syntax_rule(self['syntax'])
         for value in values:
             try:
                 syntax.validate(value)

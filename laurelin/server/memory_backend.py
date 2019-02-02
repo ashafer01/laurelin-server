@@ -3,28 +3,52 @@ In-memory ephemeral LDAP backend store
 """
 import re
 from laurelin.ldap.constants import Scope
-from laurelin.ldap.protoutils import get_string_component, split_unescaped
-from laurelin.ldap.utils import CaseIgnoreDict
+from laurelin.ldap.modify import Mod
+from laurelin.ldap.protoutils import get_string_component, split_unescaped, seq_to_list
 
+from .attrsdict import AttrsDict
 from .exceptions import LDAPError
 from .schema.object_class import ObjectClass
 
 
+def parse_rdn(rdn):
+    if isinstance(rdn, frozenset):
+        return rdn
+    if rdn == '':
+        return frozenset()
+    str_avas = split_unescaped(rdn, '+')
+    tpl_avas = []
+    for ava in str_avas:
+        try:
+            attr, val = split_unescaped(ava, '=', 1)
+        except ValueError:
+            raise ValueError('Invalid RDN')
+        tpl_avas.append((attr, val))
+    return frozenset(tpl_avas)
+
+
+def parse_dn(dn):
+    if isinstance(dn, list):
+        return dn
+    str_rdns = split_unescaped(dn, ',')
+    fzs_rdns = []
+    for rdn in str_rdns:
+        fzs_rdns.append(parse_rdn(rdn))
+    return fzs_rdns
+
+
 class LDAPObject(object):
-    def __init__(self, rdn, attrs=None):
-        if isinstance(attrs, CaseIgnoreDict):
+    def __init__(self, rdn: str, attrs=None):
+        if isinstance(attrs, AttrsDict):
             pass
         elif attrs is None or isinstance(attrs, dict):
-            attrs = CaseIgnoreDict(attrs)
+            attrs = AttrsDict(attrs)
         else:
             raise TypeError('attrs')
 
-        if rdn != '':
-            try:
-                rdn_attr, rdn_val = split_unescaped(rdn, '=', 1)
-            except ValueError:
-                raise ValueError('Invalid RDN')
+        self.rdn = parse_rdn(rdn)
 
+        for rdn_attr, rdn_val in self.rdn:
             if rdn_attr not in attrs:
                 attrs[rdn_attr] = [rdn_val]
             elif rdn_val not in attrs[rdn_attr]:
@@ -37,10 +61,14 @@ class LDAPObject(object):
         else:
             self.object_class = None
 
-        self.rdn = rdn
-
         self.attrs = attrs
         self.children = {}
+
+    def limited_attrs_copy(self, attrs=None):
+        new_attrs = self.attrs.deepcopy(attrs)
+        copy = LDAPObject(self.rdn, new_attrs)
+        copy.children = self.children.copy()
+        return copy
 
     def validate(self):
         if self.object_class:
@@ -96,11 +124,13 @@ class LDAPObject(object):
                     return True
             return False
         elif filter_type == 'greaterOrEqual':
+            # TODO greaterOrEqual filter - needs matching rules
             raise LDAPError('Greater or equal filters not yet implemented')
             #ava = fil.getComponent()
             #ret = '({0}>={1})'.format(str(ava.getComponentByName('attributeDesc')),
             #                          str(ava.getComponentByName('assertionValue')))
         elif filter_type == 'lessOrEqual':
+            # TODO lessOrEqual filter - needs matching rules
             raise LDAPError('Less or equal filters not yet implemented')
             #ava = fil.getComponent()
             #ret = '({0}<={1})'.format(str(ava.getComponentByName('attributeDesc')),
@@ -110,11 +140,13 @@ class LDAPObject(object):
             attr_type = str(present_obj)
             return attr_type in self.attrs
         elif filter_type == 'approxMatch':
+            # TODO approxMatch filter
             raise LDAPError('Approx match filters not yet implemented')
             #ava = fil.getComponent()
             #ret = '({0}~={1})'.format(str(ava.getComponentByName('attributeDesc')),
             #                          str(ava.getComponentByName('assertionValue')))
         elif filter_type == 'extensibleMatch':
+            # TODO extensibleMatch filter
             raise LDAPError('Extensible match filters not yet implemented')
             #xm_obj = fil.getComponent()
 
@@ -142,6 +174,8 @@ class LDAPObject(object):
         self.add_child_ref(obj)
 
     def add_child_ref(self, obj):
+        if obj.rdn in self.children:
+            raise LDAPError('Object already exists')
         self.children[obj.rdn] = obj
 
     def delete_child(self, rdn):
@@ -154,19 +188,19 @@ class LDAPObject(object):
         del self.children[rdn]
 
     def get_child(self, rdn):
+        rdn = parse_rdn(rdn)
         try:
             return self.children[rdn]
         except KeyError:
             raise LDAPError('No such object')
 
     def get(self, dn):
-        suffix = ','+self.rdn
-        if dn == self.rdn:
+        dn = parse_dn(dn)
+        if len(dn) == 1 and dn[0] == self.rdn:
             return self
-        elif dn.endswith(suffix):
-            dn = dn[0:-len(suffix)]
-            next_rdn = split_unescaped(dn, ',')[-1]
-            next_obj = self.get_child(next_rdn)
+        elif dn[-1] == self.rdn:
+            dn = dn[0:-1]
+            next_obj = self.get_child(dn[-1])
             return next_obj.get(dn)
         else:
             raise LDAPError('No such object')
@@ -193,18 +227,47 @@ class LDAPObject(object):
         except ValueError:
             pass
 
-    def base_object(self, filter=None):
-        if self.matches_filter(filter):
-            return self
+    def modify(self, changes):
+        for i in range(len(changes)):
+            change = changes.getComponentByPosition(i)
+            op = change.getComponentByName('operation')
+            mod = change.getComponentByName('modification')
+            attr_type = str(mod.getComponentByName('type'))
+            attr_vals = seq_to_list(mod.getComponentByName('vals'))
 
-    async def filter_children(self, filter=None):
-        yield self.base_object(filter)
+            try:
+                if op == Mod.ADD:
+                    vals = self.attrs.setdefault(attr_type, [])
+                    vals.extend(attr_vals)
+                elif op == Mod.REPLACE:
+                    if not attr_vals:
+                        del self.attrs[attr_type]
+                    else:
+                        self.attrs[attr_type] = attr_vals
+                elif op == Mod.DELETE:
+                    if not attr_vals:
+                        del self.attrs[attr_type]
+                    else:
+                        for val in attr_vals:
+                            try:
+                                self.attrs[attr_type].remove(val)
+                            except ValueError:
+                                pass
+                else:
+                    raise LDAPError('Invalid modify operation')
+            except KeyError:
+                raise LDAPError(f'No such attribute {attr_type} on object')
+
+    async def onelevel(self, filter=None):
+        if self.matches_filter(filter):
+            yield self
         for obj in self.children.values():
             if obj.matches_filter(filter):
                 yield obj
 
     async def subtree(self, filter=None):
-        yield self.base_object(filter)
+        if self.matches_filter(filter):
+            yield self
         for child in self.children.values():
             async for obj in child.subtree():
                 if obj.matches_filter(filter):
@@ -223,10 +286,6 @@ class MemoryBackend(object):
         })
 
     async def search(self, search_request):
-        base_dn = get_string_component(search_request, 'baseObject')
-        scope = search_request.getComponentByName('scope')
-        filter = search_request.getComponentByName('filter') or None
-
         _limit = search_request.getComponentByName('sizeLimit')
         if _limit.isValue:
             limit = int(_limit)
@@ -235,28 +294,41 @@ class MemoryBackend(object):
         else:
             limit = None
 
+        base_dn = str(search_request.getComponentByName('baseObject'))
+        scope = search_request.getComponentByName('scope')
+
+        if base_dn == '' and scope == Scope.BASE:
+            yield self._root_dse
+            return
+
+        fil = search_request.getComponentByName('filter') or None
+
+        _attrs = search_request.getComponentByName('attributes')
+        if _attrs.isValue:
+            attrs = seq_to_list(_attrs)
+        else:
+            attrs = None
+
         # TODO implement all search parameters
         #search_request.getComponentByName('derefAliases')
         #search_request.getComponentByName('timeLimit')
         #search_request.getComponentByName('typesOnly')
 
-        if base_dn == '':
-            result_gen = [self._root_dse]
+        base_obj = self._dit.get(base_dn)
+        if scope == Scope.BASE:
+            if base_obj.matches_filter(fil):
+                yield base_obj.limited_attrs_copy(attrs)
+            return
+        elif scope == Scope.ONE:
+            result_gen = base_obj.onelevel(fil)
+        elif scope == Scope.SUB:
+            result_gen = base_obj.subtree(fil)
         else:
-            base_obj = self._dit.get(base_dn)
-            if scope == Scope.BASE:
-                yield base_obj.base_object(filter)
-                return
-            elif scope == Scope.ONE:
-                result_gen = base_obj.filter_children(filter)
-            elif scope == Scope.SUB:
-                result_gen = base_obj.subtree(filter)
-            else:
-                raise ValueError('scope')
+            raise ValueError('scope')
 
         n = 0
         async for item in result_gen:
-            yield item
+            yield item.limited_attrs_copy(attrs)
             n += 1
             if limit and n >= limit:
                 break
@@ -271,8 +343,10 @@ class MemoryBackend(object):
         return attr_type in obj.attrs and attr_value in obj.attrs[attr_type]
 
     def modify(self, modify_request):
-        # TODO
-        pass
+        dn = str(modify_request.getComponentByName('object'))
+        changes = modify_request.getComponentByName('changes')
+        obj = self._dit.get(dn)
+        obj.modify(changes)
 
     def _get_rdn_and_parent(self, dn):
         rdn, parent_dn = split_unescaped(dn, ',', 1)

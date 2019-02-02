@@ -1,4 +1,4 @@
-from .base import schema
+from .base import get_schema
 from .element import BaseSchemaElement
 from ..exceptions import *
 
@@ -13,17 +13,18 @@ class ObjectClass(BaseSchemaElement):
         self.required_attrs = {attr.lower() for attr in self['required_attributes']}
         self.allowed_attrs = {attr.lower() for attr in self['allowed_attributes']}
         self.resolved = False
+        self.schema = get_schema()
 
     def merge(self, object_class):
         """Combine another ObjectClass into this one"""
-        other_oc = schema.get_object_class(object_class)
+        other_oc = self.schema.get_object_class(object_class)
         self.required_attrs |= other_oc.required_attrs
         self.allowed_attrs |= other_oc.allowed_attrs
 
     def resolve(self):
         if not self.resolved and 'inherits' in self:
             try:
-                superclass = schema.get_object_class(self['inherits'])
+                superclass = self.schema.get_object_class(self['inherits'])
             except KeyError:
                 raise InvalidSchemaError(f'superclass {self["inherits"]} for {self["name"]} does not exist')
             superclass.resolve()
@@ -50,25 +51,25 @@ class ObjectClass(BaseSchemaElement):
 
     def attr_type_validate(self, attrs: dict):
         for attr, values in attrs.items():
-            attr_type = schema.get_attribute_type(attr)
-            try:
-                attr_type.validate(values)
-            except SchemaValidationError:
-                raise SchemaValidationError(f'Not a valid object class {self["name"]}')
+            attr_type = self.schema.get_attribute_type(attr)
+            attr_type.validate(values)
 
 
 class ExtensibleObjectClass(ObjectClass):
+    OID = '1.3.6.1.4.1.1466.101.120.111'
+
     def __init__(self):
         BaseSchemaElement.__init__(self, {
-            'oid': '1.3.6.1.4.1.1466.101.120.111',
+            'oid': self.OID,
             'name': 'extensibleObject',
             'inherits': 'top',
             'type': 'auxiliary',
         })
 
     def validate(self, attrs: dict):
-        for attr in attrs.keys():
-            if attr['usage'] != 'userApplications':
+        for attr in attrs:
+            attr_type = self.schema.get_attribute_type(attr)
+            if attr_type['usage'] != 'userApplications':
                 raise SchemaValidationError('Non-user attribute on extensibleObject')
 
         self.attr_type_validate(attrs)
