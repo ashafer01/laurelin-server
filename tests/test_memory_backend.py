@@ -7,6 +7,7 @@ from laurelin.ldap.constants import Scope
 from laurelin.ldap.filter import parse
 
 from laurelin.server.memory_backend import MemoryBackend, LDAPObject
+from laurelin.server.schema import get_schema
 
 
 def make_search_request(base_dn, scope, filter=None, limit=None):
@@ -49,6 +50,12 @@ async def asynclist(awaitable):
 
 
 class TestMemoryBackend(unittest.TestCase):
+    def __init__(self, *args, **kwds):
+        unittest.TestCase.__init__(self, *args, **kwds)
+        schema = get_schema()
+        schema.load()
+        schema.resolve()
+
     def setUp(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(None)

@@ -278,6 +278,7 @@ attribute_types:
     single_value: true
     syntax: 1.3.6.1.4.1.1466.115.121.1.24
     usage: directoryOperation
+  name:
     equality_rule: caseIgnoreMatch
     oid: 2.5.4.41
     substrings_rule: caseIgnoreSubstringsMatch

@@ -6,11 +6,23 @@ class LDAPWarning(Warning):
     pass
 
 
-class InvalidSchemaError(LDAPError):
+class SchemaError(LDAPError):
     pass
 
 
-class SchemaValidationError(LDAPError):
+class InvalidSchemaError(SchemaError):
+    pass
+
+
+class SchemaLoadError(SchemaError):
+    pass
+
+
+class SchemaValidationError(SchemaError):
+    pass
+
+
+class UndefinedSchemaElementError(SchemaError):
     pass
 
 

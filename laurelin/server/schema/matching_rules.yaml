@@ -1,12 +1,18 @@
 matching_rules:
+  laurelin_default_equality_rule:
+    syntax: octet_string
+    usage: equality
+    prep: none
   bitStringMatch:
     oid: 2.5.13.16
     syntax: 1.3.6.1.4.1.1466.115.121.1.6
     usage: equality
+    prep: none
   booleanMatch:
     oid: 2.5.13.13
     syntax: 1.3.6.1.4.1.1466.115.121.1.7
     usage: equality
+    prep: none
   caseExactIA5Match:
     oid: 1.3.6.1.4.1.1466.109.114.1
     syntax: 1.3.6.1.4.1.1466.115.121.1.26
@@ -52,7 +58,7 @@ matching_rules:
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
     prep: case_ignore
     usage: equality
-  caseIgnoreOrderingMatch:
+  caseIgnoreOrderingMatch: # True: < / False: >=
     oid: 2.5.13.3
     syntax: 1.3.6.1.4.1.1466.115.121.1.15
     prep: case_ignore
@@ -62,4 +68,13 @@ matching_rules:
     syntax: 1.3.6.1.4.1.1466.115.121.1.58
     prep: case_ignore
     usage: substring
-
+  #directoryStringFirstComponentMatch: # TODO implement directoryFirstComponentMatch
+  #  oid: 2.5.13.31
+  #  syntax: 1.3.6.1.4.1.1466.115.121.1.15
+  #  prep: case_ignore
+  #  usage: equality
+  distinguishedNameMatch:
+    oid: 2.5.13.1
+    syntax: 1.3.6.1.4.1.1466.115.121.1.12
+    prep: parse_dn
+    usage: equality

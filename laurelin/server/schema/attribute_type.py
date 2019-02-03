@@ -24,8 +24,17 @@ class AttributeType(BaseSchemaElement):
             supertype.resolve()
             for key in self._inherit_keys:
                 if key not in self:
-                    self._params[key] = supertype[key]
+                    try:
+                        self._params[key] = supertype[key]
+                    except KeyError:
+                        pass
         self.resolved = True
+
+    def prepare_value(self, value):
+        try:
+            return self.schema.get_matching_rule(self['equality_rule']).prepare(value)
+        except KeyError:
+            raise LDAPError(f'No equality rule for attribute type {self["name"]}')
 
     def validate(self, values):
         if self['single_value'] and len(values) > 1:

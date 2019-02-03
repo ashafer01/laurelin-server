@@ -2,39 +2,15 @@
 In-memory ephemeral LDAP backend store
 """
 import re
+
 from laurelin.ldap.constants import Scope
 from laurelin.ldap.modify import Mod
-from laurelin.ldap.protoutils import get_string_component, split_unescaped, seq_to_list
+from laurelin.ldap.protoutils import split_unescaped, seq_to_list
 
 from .attrsdict import AttrsDict
+from .dn import parse_rdn, parse_dn
 from .exceptions import LDAPError
 from .schema.object_class import ObjectClass
-
-
-def parse_rdn(rdn):
-    if isinstance(rdn, frozenset):
-        return rdn
-    if rdn == '':
-        return frozenset()
-    str_avas = split_unescaped(rdn, '+')
-    tpl_avas = []
-    for ava in str_avas:
-        try:
-            attr, val = split_unescaped(ava, '=', 1)
-        except ValueError:
-            raise ValueError('Invalid RDN')
-        tpl_avas.append((attr, val))
-    return frozenset(tpl_avas)
-
-
-def parse_dn(dn):
-    if isinstance(dn, list):
-        return dn
-    str_rdns = split_unescaped(dn, ',')
-    fzs_rdns = []
-    for rdn in str_rdns:
-        fzs_rdns.append(parse_rdn(rdn))
-    return fzs_rdns
 
 
 class LDAPObject(object):
@@ -54,11 +30,12 @@ class LDAPObject(object):
             elif rdn_val not in attrs[rdn_attr]:
                 attrs[rdn_attr].append(rdn_val)
 
-        if 'objectClass' in attrs:
+        try:
+            oc_attr = attrs['objectClass']
             self.object_class = ObjectClass({'name': 'virtualMergedObjectClass', 'desc': 'Combined object classes'})
-            for oc_name in attrs['objectClass']:
+            for oc_name in oc_attr:
                 self.object_class.merge(oc_name)
-        else:
+        except KeyError:
             self.object_class = None
 
         self.attrs = attrs

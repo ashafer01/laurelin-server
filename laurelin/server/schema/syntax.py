@@ -21,7 +21,7 @@ class FormatFunction(object):
         return self.func(item)
 
 
-_regex_repetition = re.compile(r'^[0-9,]+$')
+_regex_repetition = re.compile(r'^[0-9]+(,[0-9]+)?$')
 
 
 class SyntaxRegexFormatter(string.Formatter):
@@ -72,7 +72,10 @@ class RegexSyntaxRule(BaseSyntaxRule):
             for name, pattern in params['subpatterns'].items():
                 formatted_pattern = self.formatter.format(pattern)
                 self.formatter.add_subpattern(name, formatted_pattern)
-        self._re = re.compile(self.formatter.format(params['regex']))
+        try:
+            self._re = re.compile(self.formatter.format(params['regex']))
+        except Exception:
+            raise InvalidSchemaError(f'Failed to compile regex syntax for {params["name"]}')
 
     def parse(self, value):
         m = self._re.match(value)
@@ -84,7 +87,10 @@ class RegexSyntaxRule(BaseSyntaxRule):
 class PEGSyntaxRule(BaseSyntaxRule):
     def __init__(self, params: dict):
         BaseSyntaxRule.__init__(self, params)
-        self._grammar = Grammar(params['peg'])
+        try:
+            self._grammar = Grammar(params['peg'])
+        except Exception:
+            raise InvalidSchemaError(f'Failed to parse PEG grammar for {params["name"]}')
 
     def parse(self, value):
         try:

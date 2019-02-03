@@ -13,8 +13,8 @@ from laurelin.ldap.utils import CaseIgnoreDict, re_anchor
 
 from ..exceptions import *
 
-# TODO make this an env var / CLI startup parameter
-_schema_dir = os.path.expanduser(os.path.join('~', 'etc', 'laurelin', 'server', 'schema.d'))
+# TODO make schema filesystem location configurable
+_schema_dir = None
 
 
 _kind_factories = {
@@ -37,7 +37,10 @@ def _element_getter(kind):
             dct = self._oids
         else:
             dct = self._schema[kind]
-        return dct[ident]
+        try:
+            return dct[ident]
+        except KeyError:
+            raise UndefinedSchemaElementError(f'Schema element {ident} of kind {kind} is not defined')
     return get_element
 
 
@@ -46,6 +49,7 @@ class Schema(object):
         self._schema = defaultdict(CaseIgnoreDict)
         self._oids = {}
 
+    def load(self):
         # These shall be the only 4 hard coded schema elements to enable special-casing extensibleObject
 
         self.load_element('syntax_rules', 'oid', {
@@ -69,9 +73,13 @@ class Schema(object):
         self._schema['object_classes']['extensibleObject'] = ext_oc
         self._oids[ext_oc.OID] = ext_oc
 
-    def load(self):
         self.load_builtin()
-        self.load_dir(_schema_dir)
+
+        if _schema_dir:
+            try:
+                self.load_dir(_schema_dir)
+            except SchemaLoadError:
+                pass
 
     def load_builtin(self):
         for fn in 'syntax', 'matching_rules', 'schema':
@@ -79,18 +87,24 @@ class Schema(object):
                 self.load_stream(f)
 
     def load_dir(self, schema_dir):
+        if not os.path.isdir(schema_dir):
+            raise SchemaLoadError(f'Schema directory {schema_dir} does not exist or is not a directory')
+
         files = glob(os.path.join(schema_dir, '*.yaml'))
         files += glob(os.path.join(schema_dir, '*.yml'))
         if not files:
-            warn(f'No schema files found in {schema_dir}', LDAPWarning)
+            raise SchemaLoadError(f'No schema files found in {schema_dir}')
 
         files.sort()
         for fn in files:
             self.load_file(fn)
 
     def load_file(self, fn):
-        with open(fn) as f:
-            self.load_stream(f)
+        try:
+            with open(fn) as f:
+                self.load_stream(f)
+        except OSError:
+            raise SchemaLoadError(f'Error opening file {fn}')
 
     def load_stream(self, f):
         data = yaml.safe_load(f)
@@ -110,6 +124,7 @@ class Schema(object):
             self._oids[params['oid']] = element
         except KeyError:
             pass
+        return element
 
     def resolve(self):
         """Resolve all inheritance"""
@@ -120,7 +135,22 @@ class Schema(object):
         except KeyError:
             raise InvalidSchemaError('missing inherited schema element')
 
-    get_attribute_type = _element_getter('attribute_types')
+    _get_attribute_type = _element_getter('attribute_types')
+
+    def get_attribute_type(self, ident):
+        try:
+            return self._get_attribute_type(ident)
+        except UndefinedSchemaElementError as e:
+            # TODO make allowing undefined attribute types configurable
+            if ident[0].isdigit():
+                raise UndefinedSchemaElementError(f'Cannot create default attribute type definition for OID {ident}')
+            element = self.load_element('attribute_types', ident, {
+                'syntax': 'octet_string',
+                'equality_rule': 'laurelin_default_equality_rule',
+                'desc': f'Default attribute type for {ident}',
+            })
+            return element
+
     get_object_class = _element_getter('object_classes')
     get_matching_rule = _element_getter('matching_rules')
     get_syntax_rule = _element_getter('syntax_rules')
