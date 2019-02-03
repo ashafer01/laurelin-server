@@ -57,11 +57,12 @@ class ObjectClass(BaseSchemaElement):
 
 class ExtensibleObjectClass(ObjectClass):
     OID = '1.3.6.1.4.1.1466.101.120.111'
+    NAME = 'extensibleObject'
 
     def __init__(self):
         BaseSchemaElement.__init__(self, {
             'oid': self.OID,
-            'name': 'extensibleObject',
+            'name': self.NAME,
             'inherits': 'top',
             'type': 'auxiliary',
         })

@@ -4,7 +4,6 @@ from collections import defaultdict
 from glob import glob
 from importlib import import_module
 from pkg_resources import resource_stream
-from warnings import warn
 
 import yaml
 
@@ -50,6 +49,15 @@ class Schema(object):
         self._oids = {}
 
     def load(self):
+        self.load_builtin()
+
+        if _schema_dir:
+            try:
+                self.load_dir(_schema_dir)
+            except SchemaLoadError:
+                pass
+
+    def load_builtin(self):
         # These shall be the only 4 hard coded schema elements to enable special-casing extensibleObject
 
         self.load_element('syntax_rules', 'oid', {
@@ -70,18 +78,9 @@ class Schema(object):
 
         from .object_class import ExtensibleObjectClass
         ext_oc = ExtensibleObjectClass()
-        self._schema['object_classes']['extensibleObject'] = ext_oc
+        self._schema['object_classes'][ext_oc.NAME] = ext_oc
         self._oids[ext_oc.OID] = ext_oc
 
-        self.load_builtin()
-
-        if _schema_dir:
-            try:
-                self.load_dir(_schema_dir)
-            except SchemaLoadError:
-                pass
-
-    def load_builtin(self):
         for fn in 'syntax', 'matching_rules', 'schema':
             with resource_stream(__name__, fn + '.yaml') as f:
                 self.load_stream(f)
@@ -132,7 +131,7 @@ class Schema(object):
             for kind in 'object_classes', 'attribute_types':
                 for obj in self._schema[kind].values():
                     obj.resolve()
-        except KeyError:
+        except UndefinedSchemaElementError:
             raise InvalidSchemaError('missing inherited schema element')
 
     _get_attribute_type = _element_getter('attribute_types')
@@ -140,7 +139,7 @@ class Schema(object):
     def get_attribute_type(self, ident):
         try:
             return self._get_attribute_type(ident)
-        except UndefinedSchemaElementError as e:
+        except UndefinedSchemaElementError:
             # TODO make allowing undefined attribute types configurable
             if ident[0].isdigit():
                 raise UndefinedSchemaElementError(f'Cannot create default attribute type definition for OID {ident}')

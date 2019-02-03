@@ -11,21 +11,21 @@ class DN(list):
     def __init__(self, original=None):
         list.__init__(self)
         self._original = original
+        self._stringified = None
 
     def _stringify(self):
-        return ','.join(['+'.join(['='.join(ava) for ava in rdn]) for rdn in self])
+        if self._stringified is None:
+            self._stringified = ','.join(['+'.join(['='.join(ava) for ava in rdn]) for rdn in self])
+        return self._stringified
 
     def __str__(self):
-        if self._original:
+        if self._original is not None:
             return self._original
         else:
             return self._stringify()
 
     def __repr__(self):
-        if self._original:
-            return f'DN({repr(self._original)})'
-        else:
-            return f'DN(<{self._stringify()}>)'
+        return f'DN({repr(str(self))})'
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -45,7 +45,7 @@ def parse_rdn(rdn):
     tpl_avas = []
     for ava in str_avas:
         try:
-            attr, val = split_unescaped(ava, '=', 1)
+            attr, val = split_unescaped(ava, '=')
         except ValueError:
             raise ValueError('Invalid RDN')
         val = get_schema().get_attribute_type(attr).prepare_value(val)
@@ -61,5 +61,3 @@ def parse_dn(dn):
     for rdn in str_rdns:
         dn.append(parse_rdn(rdn))
     return dn
-
-
