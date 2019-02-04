@@ -42,7 +42,7 @@ class MatchingRule(BaseSchemaElement):
             for routine in params['prep']:
                 self._prep_routine += prep_routines[routine]
         else:
-            raise ValueError('prep parameter must be string naming pre-defined prep routine or list of names to combine')
+            raise TypeError('prep parameter must be string naming pre-defined prep routine or list of names to combine')
 
     def prepare(self, value):
         for prep_method in self._prep_routine:
@@ -64,7 +64,6 @@ class MatchingRule(BaseSchemaElement):
         elif self['usage'] == 'ordering':
             return attribute_value < assertion_value
         elif self['usage'] == 'substring':
-            # TODO substring matching rules
-            raise LDAPError('substring matching rules not yet implemented')
+            raise RuntimeError('substring matching rules cannot be called, use AttrValueList.match_substrings()')
         else:
             raise ValueError('invalid matching rule usage param')

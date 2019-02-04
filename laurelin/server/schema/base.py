@@ -146,6 +146,7 @@ class Schema(object):
             element = self.load_element('attribute_types', ident, {
                 'syntax': 'octet_string',
                 'equality_rule': 'laurelin_default_equality_rule',
+                'substrings_rule': 'caseIgnoreSubstringsMatch',
                 'desc': f'Default attribute type for {ident}',
             })
             return element
