@@ -94,7 +94,7 @@ class AttrValueList(list):
                 sub_obj = substrings.getComponentByPosition(i)
                 sub_name = sub_obj.getName()
                 sub_str = str(sub_obj.getComponent())
-                sub_strs.append(substr_rule.prepare(sub_str))
+                sub_strs.append(re.escape(substr_rule.prepare(sub_str)))
             if sub_name != 'final' and sub_strs[-1] != '':
                 sub_strs.append('')
             pattern = '^' + '.*?'.join(sub_strs) + '$'
