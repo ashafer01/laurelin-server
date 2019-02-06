@@ -104,7 +104,14 @@ class OctetStringSyntax(BaseSyntaxRule):
         return value
 
 
+class NormalizedPhoneNumber(str):
+    pass
+
+
 def normalize_phone_number(value):
+    if isinstance(value, NormalizedPhoneNumber):
+        return value
+
     # strip out non-digit and non-plus characters
     s = re.sub('[^0-9+]', '', value)
 
@@ -126,10 +133,10 @@ def normalize_phone_number(value):
     if has_plus:
         s = '+' + s
 
-    return s
+    return NormalizedPhoneNumber(s)
 
 
-class ParsedFaxNumber(object):
+class FaxNumber(object):
     def __init__(self, norm_number, params):
         self.number = norm_number
         self.params = params
@@ -155,7 +162,7 @@ class FacsimileTelephoneNumberSyntax(BaseSyntaxRule):
         for param in params[1:]:
             if param.lower() not in self._fax_parameters:
                 raise SchemaValidationError(f'Not a valid {self["name"]} - invalid fax parameter')
-        return ParsedFaxNumber(norm_number, params[1:])
+        return FaxNumber(norm_number, params[1:])
 
 
 class TelephoneNumberSyntax(BaseSyntaxRule):
@@ -177,8 +184,10 @@ def SyntaxRule(params: dict):
     elif 'octet_string' in params and params['octet_string']:
         return OctetStringSyntax(params)
     elif 'custom' in params and params['custom']:
-        if 'oid' not in params:
+        try:
+            oid = params['oid']
+        except KeyError:
             raise InvalidSchemaError('oid is required for custom syntax implementations')
-        return custom_syntax_implementations[params['oid']](params)
+        return custom_syntax_implementations[oid](params)
     else:
         raise LDAPError('Syntax implementation unknown / not yet implemented')

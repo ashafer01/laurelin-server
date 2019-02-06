@@ -137,6 +137,9 @@ class Schema(object):
     _get_attribute_type = _element_getter('attribute_types')
 
     def get_attribute_type(self, ident):
+        """
+        :rtype: laurelin.server.schema.attribute_type.AttributeType
+        """
         try:
             return self._get_attribute_type(ident)
         except UndefinedSchemaElementError:
@@ -159,7 +162,7 @@ class Schema(object):
 _schema = None
 
 
-def get_schema():
+def get_schema() -> Schema:
     global _schema
     if not _schema:
         _schema = Schema()

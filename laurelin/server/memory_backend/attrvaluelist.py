@@ -1,7 +1,15 @@
 import re
+import warnings
 
 from ..exceptions import *
 from ..schema import get_schema
+
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    from fuzzywuzzy import fuzz
+
+# TODO make approxMatch min score configurable
+APPROX_MATCH_FUZZ_MIN_RATIO = 75
 
 
 class AttrValueList(list):
@@ -11,19 +19,22 @@ class AttrValueList(list):
         self._attr_type = attr
         self._attr = self._schema.get_attribute_type(attr)
 
-    def index(self, assertion_value, *args, **kwds):
+    def _get_rule(self, key):
         try:
-            rule = self._attr['equality_rule']
+            rule = self._attr[key]
         except KeyError:
-            raise LDAPError(f'Attribute {self._attr_type} does not have a defined equality matching rule')
+            raise LDAPError(f'Attribute {self._attr_type} does not have a defined {key}')
         try:
-            equal = self._schema.get_matching_rule(rule)
-            for i, value in enumerate(self):
-                if equal(value, assertion_value):
-                    return i
-            raise ValueError(f'Attribute value "{assertion_value}" does not exist')
+            return self._schema.get_matching_rule(rule)
         except UndefinedSchemaElementError:
-            raise LDAPError(f'Attribute {self._attr_type} equality matching rule is not defined')
+            raise LDAPError(f'Attribute {self._attr_type} {key} is not defined')
+
+    def index(self, assertion_value, *args, **kwds):
+        equal = self._get_rule('equality_rule')
+        for i, value in enumerate(self):
+            if equal(value, assertion_value):
+                return i
+        raise ValueError(f'Attribute value "{assertion_value}" does not exist')
 
     def remove(self, item):
         i = self.index(item)
@@ -46,18 +57,11 @@ class AttrValueList(list):
         return not self.equals(other)
 
     def less_than(self, assertion_value):
-        try:
-            rule = self._attr['ordering_rule']
-        except KeyError:
-            raise LDAPError(f'Attribute {self._attr_type} does not have a defined ordering rule')
-        try:
-            ordering = self._schema.get_matching_rule(rule)
-            for value in self:
-                if ordering(value, assertion_value):
-                    return True
-            return False
-        except UndefinedSchemaElementError:
-            raise LDAPError(f'Attribute {self._attr_type} ordering rule is not defined')
+        ordering = self._get_rule('ordering_rule')
+        for value in self:
+            if ordering(value, assertion_value):
+                return True
+        return False
 
     def __lt__(self, other):
         return self.less_than(other)
@@ -105,3 +109,12 @@ class AttrValueList(list):
             return False
         except UndefinedSchemaElementError:
             raise LDAPError(f'Attribute {self._attr_type} substrings rule is not defined')
+
+    def match_approx(self, assertion_value):
+        equal = self._get_rule('equality_rule')
+        assertion_value = equal.prepare(assertion_value)
+        for val in self:
+            val = equal.prepare(val)
+            if fuzz.ratio(val, assertion_value) >= APPROX_MATCH_FUZZ_MIN_RATIO:
+                return True
+        return False

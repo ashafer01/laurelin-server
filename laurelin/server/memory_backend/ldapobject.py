@@ -90,11 +90,10 @@ class LDAPObject(object):
             attr = str(present_obj)
             return attr in self.attrs
         elif filter_type == 'approxMatch':
-            # TODO approxMatch filter
-            raise LDAPError('Approx match filters not yet implemented')
-            #ava = fil.getComponent()
-            #ret = '({0}~={1})'.format(str(ava.getComponentByName('attributeDesc')),
-            #                          str(ava.getComponentByName('assertionValue')))
+            ava = fil.getComponent()
+            attr = str(ava.getComponentByName('attributeDesc'))
+            value = str(ava.getComponentByName('assertionValue'))
+            return attr in self.attrs and self.attrs[attr].match_approx(value)
         elif filter_type == 'extensibleMatch':
             # TODO extensibleMatch filter
             raise LDAPError('Extensible match filters not yet implemented')
@@ -116,7 +115,7 @@ class LDAPObject(object):
 
             #ret = '({0}{1}{2}:={3})'.format(attr, dn_attrs, rule, value)
         else:
-            raise LDAPError(f'Non-standard filter type "{filter_type}" in search request is unhandled')
+            raise LDAPError(f'Non-standard filter type "{filter_type}" is unhandled')
 
     def add_child(self, rdn, attrs=None):
         obj = LDAPObject(rdn, attrs)
