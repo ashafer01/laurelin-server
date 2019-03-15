@@ -34,6 +34,6 @@ setup(
     ],
     namespace_packages=['laurelin'],
     packages=find_packages(exclude=['tests']),
-    install_requires=['laurelin-ldap'],
+    install_requires=['laurelin-ldap', 'pyasn1'],
     include_package_data=True,
 )

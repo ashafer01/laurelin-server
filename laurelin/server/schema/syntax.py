@@ -4,7 +4,7 @@ import string
 from parsimonious.grammar import Grammar
 from parsimonious.exceptions import ParseError
 
-from laurelin.ldap import rfc4512, rfc4514, rfc4517
+from laurelin.ldap import rfc4512, rfc4514, rfc4515, rfc4517
 from laurelin.ldap.utils import escaped_regex
 
 from .element import BaseSchemaElement
@@ -24,17 +24,8 @@ class FormatFunction(object):
 _regex_repetition = re.compile(r'^[0-9]+(,[0-9]+)?$')
 
 
-class SyntaxRegexFormatter(string.Formatter):
-    def __init__(self):
-        self._extra_kwargs = {
-            'rfc4512': rfc4512,
-            'rfc4514': rfc4514,
-            'rfc4517': rfc4517,
-            'escape': FormatFunction(escaped_regex)
-        }
-
-    def add_subpattern(self, name, pattern):
-        self._extra_kwargs[name] = pattern
+class SyntaxFormatter(string.Formatter):
+    _extra_kwargs = {}
 
     def parse(self, format_string):
         for tpl in string.Formatter.parse(self, format_string):
@@ -53,6 +44,25 @@ class SyntaxRegexFormatter(string.Formatter):
         return string.Formatter.vformat(self, format_string, args, kwargs)
 
 
+class RegexSyntaxFormatter(SyntaxFormatter):
+    _extra_kwargs = {
+        'rfc4512': rfc4512,
+        'rfc4514': rfc4514,
+        'rfc4515': rfc4515,
+        'rfc4517': rfc4517,
+        'escape': FormatFunction(escaped_regex)
+    }
+
+    def add_subpattern(self, name, pattern):
+        self._extra_kwargs[name] = pattern
+
+
+class PEGSyntaxFormatter(SyntaxFormatter):
+    _extra_kwargs = {
+        'rfc4515': rfc4515,
+    }
+
+
 class BaseSyntaxRule(BaseSchemaElement):
     def validate(self, value):
         try:
@@ -67,13 +77,13 @@ class BaseSyntaxRule(BaseSchemaElement):
 class RegexSyntaxRule(BaseSyntaxRule):
     def __init__(self, params: dict):
         BaseSyntaxRule.__init__(self, params)
-        self.formatter = SyntaxRegexFormatter()
+        self._formatter = SyntaxRegexFormatter()
         if 'subpatterns' in params:
             for name, pattern in params['subpatterns'].items():
-                formatted_pattern = self.formatter.format(pattern)
-                self.formatter.add_subpattern(name, formatted_pattern)
+                formatted_pattern = self._formatter.format(pattern)
+                self._formatter.add_subpattern(name, formatted_pattern)
         try:
-            self._re = re.compile(self.formatter.format(params['regex']))
+            self._re = re.compile(self._formatter.format(params['regex']))
         except Exception:
             raise InvalidSchemaError(f'Failed to compile regex syntax for {params["name"]}')
 

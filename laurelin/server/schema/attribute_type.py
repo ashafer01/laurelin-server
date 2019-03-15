@@ -34,7 +34,9 @@ class AttributeType(BaseSchemaElement):
         try:
             return self.schema.get_matching_rule(self['equality_rule']).prepare(value)
         except KeyError:
-            raise LDAPError(f'No equality rule for attribute type {self["name"]}')
+            raise NeededRuleNotSpecifiedError(f'Attribute type {self["name"]} does not define an equality rule')
+        except UndefinedSchemaElementError:
+            raise NeededRuleUndefinedError(f'Equality rule for attribute type {self["name"]} not defined')
 
     def validate(self, values):
         if self['single_value'] and len(values) > 1:

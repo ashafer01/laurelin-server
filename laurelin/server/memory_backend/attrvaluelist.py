@@ -82,33 +82,26 @@ class AttrValueList(list):
         :param laurelin.ldap.rfc4511.Substrings substrings: protocol object representing the substring assertion
         :rtype: bool
         """
-        try:
-            rule = self._attr['substrings_rule']
-        except KeyError:
-            raise LDAPError(f'Attribute {self._attr_type} does not have a defined substrings rule')
-        try:
-            substr_rule = self._schema.get_matching_rule(rule)
-            n = len(substrings)
-            sub_name = ''
-            sub_strs = []
-            first_type = substrings.getComponentByPosition(0).getName()
-            if first_type != 'initial':
-                sub_strs.append('')
-            for i in range(n):
-                sub_obj = substrings.getComponentByPosition(i)
-                sub_name = sub_obj.getName()
-                sub_str = str(sub_obj.getComponent())
-                sub_strs.append(re.escape(substr_rule.prepare(sub_str)))
-            if sub_name != 'final' and sub_strs[-1] != '':
-                sub_strs.append('')
-            pattern = '^' + '.*?'.join(sub_strs) + '$'
-            for val in self:
-                val = substr_rule.prepare(val)
-                if re.match(pattern, val):
-                    return True
-            return False
-        except UndefinedSchemaElementError:
-            raise LDAPError(f'Attribute {self._attr_type} substrings rule is not defined')
+        substr_rule = self._get_rule('substrings_rule')
+        n = len(substrings)
+        sub_name = ''
+        sub_strs = []
+        first_type = substrings.getComponentByPosition(0).getName()
+        if first_type != 'initial':
+            sub_strs.append('')
+        for i in range(n):
+            sub_obj = substrings.getComponentByPosition(i)
+            sub_name = sub_obj.getName()
+            sub_str = str(sub_obj.getComponent())
+            sub_strs.append(re.escape(substr_rule.prepare(sub_str)))
+        if sub_name != 'final' and sub_strs[-1] != '':
+            sub_strs.append('')
+        pattern = '^' + '.*?'.join(sub_strs) + '$'
+        for val in self:
+            val = substr_rule.prepare(val)
+            if re.match(pattern, val):
+                return True
+        return False
 
     def match_approx(self, assertion_value):
         equal = self._get_rule('equality_rule')

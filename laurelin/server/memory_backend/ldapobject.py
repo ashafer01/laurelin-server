@@ -2,13 +2,15 @@ from laurelin.ldap.modify import Mod
 from laurelin.ldap.protoutils import split_unescaped, seq_to_list
 
 from .attrsdict import AttrsDict
+
+from .. import search_results
 from ..dn import parse_rdn, parse_dn
-from ..schema.object_class import ObjectClass
 from ..exceptions import *
+from ..schema.object_class import ObjectClass
 
 
 class LDAPObject(object):
-    def __init__(self, rdn: str, attrs=None):
+    def __init__(self, rdn: str, parent_suffix=None, attrs=None):
         if isinstance(attrs, AttrsDict):
             pass
         elif attrs is None or isinstance(attrs, dict):
@@ -17,6 +19,10 @@ class LDAPObject(object):
             raise TypeError('attrs')
 
         self.rdn = parse_rdn(rdn)
+        if parent_suffix:
+            self.dn_str = f'{rdn},{parent_suffix}'
+        else:
+            self.dn_str = str(rdn)
 
         for rdn_attr, rdn_val in self.rdn:
             if rdn_attr not in attrs:
@@ -35,11 +41,9 @@ class LDAPObject(object):
         self.attrs = attrs
         self.children = {}
 
-    def limited_attrs_copy(self, attrs=None):
+    def to_result(self, attrs=None):
         new_attrs = self.attrs.deepcopy(attrs)
-        copy = LDAPObject(self.rdn, new_attrs)
-        copy.children = self.children.copy()
-        return copy
+        return search_results.Entry(self.dn_str, new_attrs)
 
     def validate(self):
         if self.object_class:
@@ -118,13 +122,13 @@ class LDAPObject(object):
             raise LDAPError(f'Non-standard filter type "{filter_type}" is unhandled')
 
     def add_child(self, rdn, attrs=None):
-        obj = LDAPObject(rdn, attrs)
+        obj = LDAPObject(rdn, self.dn_str, attrs)
         obj.validate()
         self.add_child_ref(obj)
 
     def add_child_ref(self, obj):
         if obj.rdn in self.children:
-            raise LDAPError('Object already exists')
+            raise EntryAlreadyExistsError('Object already exists')
         self.children[obj.rdn] = obj
 
     def delete_child(self, rdn):
@@ -152,7 +156,7 @@ class LDAPObject(object):
             next_obj = self.get_child(dn[-1])
             return next_obj.get(dn)
         else:
-            raise LDAPError('No such object')
+            raise BaseObjectNotFound('No such object', self.dn_str)
 
     def mod_rdn(self, rdn, new_rdn, del_old_rdn_attr):
         if rdn == new_rdn:
@@ -163,7 +167,7 @@ class LDAPObject(object):
         self.children[new_rdn] = obj
 
         if del_old_rdn_attr:
-            rdn_attr, rdn_val = split_unescaped(rdn, '=', 1)
+            rdn_attr, rdn_val = split_unescaped(rdn, '=')
             self.delete_attr_value(rdn_attr, rdn_val)
 
     def delete_attr_value(self, attr, value):
@@ -187,7 +191,11 @@ class LDAPObject(object):
             try:
                 if op == Mod.ADD:
                     vals = self.attrs.setdefault(attr_type)
-                    vals.extend(attr_vals)
+                    for val in attr_vals:
+                        if val in vals:
+                            # the client asked us to add a value equivalent to an existing one
+                            continue
+                        vals.append(val)
                 elif op == Mod.REPLACE:
                     if not attr_vals:
                         del self.attrs[attr_type]
@@ -201,11 +209,12 @@ class LDAPObject(object):
                             try:
                                 self.attrs[attr_type].remove(val)
                             except ValueError:
+                                # the client asked us to delete a value that does not exist
                                 pass
                 else:
-                    raise LDAPError('Invalid modify operation')
+                    raise ProtocolError('Invalid modify operation')
             except KeyError:
-                raise LDAPError(f'No such attribute {attr_type} on object')
+                raise NoSuchAttributeError(f'No such attribute {attr_type} on object {self.dn_str}')
 
     async def onelevel(self, filter=None):
         if self.matches_filter(filter):

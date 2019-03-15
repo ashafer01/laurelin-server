@@ -75,13 +75,12 @@ class TestMemoryBackend(unittest.TestCase):
                 val = alpha1[i:i+size]
                 rdns.append(attr + '=' + val)
 
-            with self.subTest('populate tree'):
-                for rdn0 in rdns:
-                    mb.add(make_add_request(','.join((rdn0, suffix))))
-                    for rdn1 in rdns:
-                        mb.add(make_add_request(','.join((rdn1, rdn0, suffix))))
-                        for rdn2 in rdns:
-                            mb.add(make_add_request(','.join((rdn2, rdn1, rdn0, suffix))))
+            for rdn0 in rdns:
+                mb.add(make_add_request(','.join((rdn0, suffix))))
+                for rdn1 in rdns:
+                    mb.add(make_add_request(','.join((rdn1, rdn0, suffix))))
+                    for rdn2 in rdns:
+                        mb.add(make_add_request(','.join((rdn2, rdn1, rdn0, suffix))))
 
             with self.subTest(dn=suffix):
                 await asynclist(mb.search(make_search_request(suffix, Scope.BASE)))

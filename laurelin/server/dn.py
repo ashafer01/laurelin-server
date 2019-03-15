@@ -1,10 +1,21 @@
+from .exceptions import *
 from .schema import get_schema
 
 from laurelin.ldap.protoutils import split_unescaped
 
 
 class RDN(frozenset):
-    pass
+    def __init__(self, *args):
+        frozenset.__init__(*args)
+        self._str = None
+
+    def __str__(self):
+        if self._str is None:
+            self._str = '+'.join(['='.join(ava) for ava in self])
+        return self._str
+
+    def __repr__(self):
+        return f'RDN({repr(str(self))})'
 
 
 class DN(list):
@@ -15,7 +26,7 @@ class DN(list):
 
     def _stringify(self):
         if self._stringified is None:
-            self._stringified = ','.join(['+'.join(['='.join(ava) for ava in rdn]) for rdn in self])
+            self._stringified = ','.join([str(rdn) for rdn in self])
         return self._stringified
 
     def __str__(self):
@@ -47,8 +58,14 @@ def parse_rdn(rdn):
         try:
             attr, val = split_unescaped(ava, '=')
         except ValueError:
-            raise ValueError('Invalid RDN')
-        val = get_schema().get_attribute_type(attr).prepare_value(val)
+            raise InvalidDNError('Invalid RDN - no equals sign or equals sign needs escaping')
+        try:
+            val = get_schema().get_attribute_type(attr).prepare_value(val)
+        except UndefinedSchemaElementError:
+            raise InvalidDNError(f'Invalid RDN - attribute type {attr} does not exist')
+        except NeededRuleError:
+            raise InvalidDNError(f'Invalid RDN - attribute type {attr} cannot be used for an RDN attribute because a '
+                                 f'matching rule is not available to compare values')
         tpl_avas.append((attr.lower(), val))
     return RDN(tpl_avas)
 

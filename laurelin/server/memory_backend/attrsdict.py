@@ -24,7 +24,7 @@ class AttrsDict(CaseIgnoreDict):
                 ret[attr].append(val)
         return ret
 
-    def setdefault(self, attr, default=None):
+    def setdefault(self, attr, default=None) -> AttrValueList:
         if default is None:
             default = AttrValueList(attr)
         return CaseIgnoreDict.setdefault(self, attr, default)
