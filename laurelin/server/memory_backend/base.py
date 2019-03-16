@@ -5,15 +5,17 @@ from laurelin.ldap.constants import Scope
 from laurelin.ldap.protoutils import split_unescaped, seq_to_list
 
 from .ldapobject import LDAPObject
+from ..backend import AbstractBackend
 
 
-class MemoryBackend(object):
-    def __init__(self, base_dn):
-        self.suffix = base_dn
-        self._dit = LDAPObject(base_dn)
+class MemoryBackend(AbstractBackend):
+    def __init__(self, conf):
+        AbstractBackend.__init__(self, conf)
+        self.suffix = conf['suffix']
+        self._dit = LDAPObject(self.suffix)
         self._root_dse = LDAPObject('', {
-            'namingContexts': [base_dn],
-            'defaultNamingContext': [base_dn],
+            'namingContexts': [self.suffix],
+            'defaultNamingContext': [self.suffix],
             'supportedLDAPVersion': ['3'],
             'vendorName': ['laurelin'],
         })

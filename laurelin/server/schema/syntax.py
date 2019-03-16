@@ -77,7 +77,7 @@ class BaseSyntaxRule(BaseSchemaElement):
 class RegexSyntaxRule(BaseSyntaxRule):
     def __init__(self, params: dict):
         BaseSyntaxRule.__init__(self, params)
-        self._formatter = SyntaxRegexFormatter()
+        self._formatter = RegexSyntaxFormatter()
         if 'subpatterns' in params:
             for name, pattern in params['subpatterns'].items():
                 formatted_pattern = self._formatter.format(pattern)

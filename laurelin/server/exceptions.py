@@ -6,11 +6,19 @@ class InternalError(BaseException):
     pass
 
 
-class LDAPError(Exception):
+class LaurelinError(Exception):
+    pass
+
+
+class LDAPError(LaurelinError):
     pass
 
 
 class LDAPWarning(Warning):
+    pass
+
+
+class ConfigError(LaurelinError):
     pass
 
 

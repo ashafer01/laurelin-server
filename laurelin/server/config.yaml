@@ -1,0 +1,23 @@
+schema:
+  directory: /some/dir
+  allow_undefined_attribute_types: true
+backends:
+  test_memory_1:
+    type: memory
+    suffix: o=laurelin
+default_backend: test_memory_1
+servers:
+  "ldap://0.0.0.0:389":
+    use_backend: test_memory_1
+  "ldapi:///var/run/laurelin-server.socket":
+    use_backend: test_memory_1
+  "ldaps://0.0.0.0:636":
+    use_backend: test_memory_1
+    certificate: "/etc/laurelin/server/cert_chain.pem"
+    private_key: "/etc/laurelin/server/private_key.pem"
+    client_verify:
+      required: True
+      check_crl: True
+      use_system_ca_store: True
+      ca_file: "/etc/laurelin/server/client_verify_ca.pem"
+      ca_path: "/etc/laurelin/server/client_verification_dir"

@@ -53,7 +53,7 @@ class TestMemoryBackend(unittest.TestCase):
     def __init__(self, *args, **kwds):
         unittest.TestCase.__init__(self, *args, **kwds)
         schema = get_schema()
-        schema.load()
+        schema.load_builtin()
         schema.resolve()
 
     def setUp(self):

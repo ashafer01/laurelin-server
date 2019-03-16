@@ -11,9 +11,7 @@ from laurelin.ldap import rfc4512
 from laurelin.ldap.utils import CaseIgnoreDict, re_anchor
 
 from ..exceptions import *
-
-# TODO make schema filesystem location configurable
-_schema_dir = None
+from ..config import Config
 
 
 _kind_factories = {
@@ -44,18 +42,16 @@ def _element_getter(kind):
 
 
 class Schema(object):
+    DEFAULT_ALLOW_UNDEFINED_ATTRIBUTE_TYPES = True
+
     def __init__(self):
         self._schema = defaultdict(CaseIgnoreDict)
         self._oids = {}
+        self.conf = Config()
 
-    def load(self):
-        self.load_builtin()
-
-        if _schema_dir:
-            try:
-                self.load_dir(_schema_dir)
-            except SchemaLoadError:
-                pass
+    def clear(self):
+        self._schema.clear()
+        self._oids.clear()
 
     def load_builtin(self):
         # These shall be the only 4 hard coded schema elements to enable special-casing extensibleObject
@@ -84,6 +80,12 @@ class Schema(object):
         for fn in 'syntax', 'matching_rules', 'schema':
             with resource_stream(__name__, fn + '.yaml') as f:
                 self.load_stream(f)
+
+    def load_conf_dir(self):
+        try:
+            self.load_dir(self.conf['directory'])
+        except KeyError:
+            pass
 
     def load_dir(self, schema_dir):
         if not os.path.isdir(schema_dir):
@@ -143,16 +145,18 @@ class Schema(object):
         try:
             return self._get_attribute_type(ident)
         except UndefinedSchemaElementError:
-            # TODO make allowing undefined attribute types configurable
-            if ident[0].isdigit():
-                raise UndefinedSchemaElementError(f'Cannot create default attribute type definition for OID {ident}')
-            element = self.load_element('attribute_types', ident, {
-                'syntax': 'octet_string',
-                'equality_rule': 'laurelin_default_equality_rule',
-                'substrings_rule': 'caseExactSubstringsMatch',
-                'desc': f'Default attribute type for {ident}',
-            })
-            return element
+            if self.conf.get('allow_undefined_attribute_types', Schema.DEFAULT_ALLOW_UNDEFINED_ATTRIBUTE_TYPES):
+                if ident[0].isdigit():
+                    raise UndefinedSchemaElementError(f'Cannot create default attribute type definition for OID {ident}')
+                element = self.load_element('attribute_types', ident, {
+                    'syntax': 'octet_string',
+                    'equality_rule': 'laurelin_default_equality_rule',
+                    'substrings_rule': 'caseExactSubstringsMatch',
+                    'desc': f'Default attribute type for {ident}',
+                })
+                return element
+            else:
+                raise
 
     get_object_class = _element_getter('object_classes')
     get_matching_rule = _element_getter('matching_rules')

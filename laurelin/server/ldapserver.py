@@ -5,9 +5,11 @@ from pyasn1.codec.ber.encoder import encode as ber_encode
 from pyasn1.codec.ber.decoder import decode as ber_decode
 from pyasn1.error import PyAsn1Error, SubstrateUnderrunError
 from laurelin.ldap import rfc4511
-from laurelin.ldap.net import parse_host_uri
+from laurelin.ldap.net import parse_host_uri, host_port
 
 from .exceptions import *
+from .backend import AbstractBackend
+from .config import Config
 
 
 def pack(message_id, op, controls=None):
@@ -60,14 +62,16 @@ _root_op_names = {'bind', 'unbind', 'search', 'add', 'modify', 'modDN', 'abandon
 # TODO get rid of this object!
 _unimplemented_ops = {'bind', 'unbind', 'abandon', 'extended'}
 
+_request_str = 'Request'
+
 
 def _is_request(operation):
     if operation == 'extendedReq':
         return True
-    if operation.endswith('Request'):
+    if operation.endswith(_request_str):
         for prefix in _root_op_names:
             if operation.startswith(prefix):
-                return True
+                return len(operation) == len(_request_str) + len(prefix)
     return False
 
 
@@ -105,79 +109,48 @@ def _rfc4511_response_class(root_op):
 
 
 class LDAPServer(object):
-    DEFAULT_LISTEN_URIS = ['ldap://0.0.0.0:389', 'ldapi:///var/run/laurelin-server.socket']
+    DEFAULT_SSL_CLIENT_VERIFY_REQUIRED = False
     DEFAULT_SSL_CLIENT_VERIFY_USE_SYSTEM_CA = True
     DEFAULT_SSL_CLIENT_VERIFY_CA_FILE = None
     DEFAULT_SSL_CLIENT_VERIFY_CA_PATH = None
+    DEFAULT_SSL_CLIENT_VERIFY_CHECK_CRL = True
 
     RECV_BUFFER = 1024
 
     OID_NOTICE_OF_DISCONNECTION = '1.3.6.1.4.1.1466.20036'  # RFC 4511 sec 4.4.1
 
-    def __init__(self, listen_uris=None):
-        if listen_uris is None:
-            listen_uris = LDAPServer.DEFAULT_LISTEN_URIS
+    def __init__(self, uri: str, conf: Config, backend: AbstractBackend):
+        self.uri = uri
+        self.conf = conf
+        self.backend = backend
 
-        self.listen_uris = listen_uris
-
-        self.runners = []
-
-        # TODO make configurable obviously
-        from .memory_backend import MemoryBackend
-        self.backend = MemoryBackend('o=laurelin')
-
-    async def start(self):
-        for uri in self.listen_uris:
-            scheme, netloc = parse_host_uri(uri)
-            if scheme == 'ldap':
-                hp = netloc.rsplit(':', 1)
-                host = hp[0]
-                if len(hp) < 2:
-                    port = 389
-                else:
-                    port = int(hp[1])
-                await self._create_server(host=host, port=port)
-            elif scheme == 'ldaps':
-                hp = netloc.rsplit(':', 1)
-                host = hp[0]
-                if len(hp) < 2:
-                    port = 636
-                else:
-                    port = int(hp[1])
-
-                # TODO load configs and use them to populate
-                cert_filename = ''
-                private_key_filename = None
-                client_verify_use_system_ca = LDAPServer.DEFAULT_SSL_CLIENT_VERIFY_USE_SYSTEM_CA
-                client_verify_ca_file = LDAPServer.DEFAULT_SSL_CLIENT_VERIFY_CA_FILE
-                client_verify_ca_path = LDAPServer.DEFAULT_SSL_CLIENT_VERIFY_CA_PATH
-
-                ctx = self._create_ssl_context(cert_filename, private_key_filename, client_verify_use_system_ca,
-                                               client_verify_ca_file, client_verify_ca_path)
-
-                await self._create_server(host=host, port=port, ssl=ctx)
-            elif scheme == 'ldapi':
-                await self._create_server(path=netloc)
-            else:
-                raise LDAPError(f'Unsupported scheme {scheme}')
-
-        await asyncio.gather(*self.runners)
-
-    async def _create_server(self, path=None, host=None, port=None, ssl=None):
-        kwds = {'ssl': ssl, 'start_serving': False}
-        if path is not None:
-            server = await asyncio.start_unix_server(self.client, path=path, **kwds)
+    async def run(self):
+        scheme, netloc = parse_host_uri(self.uri)
+        if scheme == 'ldap':
+            host, port = host_port(netloc, default_port=389)
+            await self._start_server(host=host, port=port)
+        elif scheme == 'ldaps':
+            host, port = host_port(netloc, default_port=636)
+            await self._start_server(host=host, port=port, ssl=self._create_ssl_context())
+        elif scheme == 'ldapi':
+            await self._start_server(path=netloc)
         else:
-            server = await asyncio.start_server(self.client, host=host, port=port, **kwds)
-        self.runners.append(server.serve_forever())
+            raise LDAPError(f'Unsupported scheme {scheme}')
+
+    async def _start_server(self, path=None, host=None, port=None, ssl=None):
+        kwds = {'ssl': ssl}
+        if path is not None:
+            await asyncio.start_unix_server(self.client, path=path, **kwds)
+        else:
+            await asyncio.start_server(self.client, host=host, port=port, **kwds)
 
     async def client(self, reader, writer):
         buffer = b''
-        while True:  # {
+        while True:  # { client recv loop
             try:
                 data = await reader.read(LDAPServer.RECV_BUFFER)
                 buffer += data
-                while len(buffer) > 0:  # {
+                while len(buffer) > 0:  # { decoded request object loop
                     request, buffer = ber_decode(buffer, asn1Spec=rfc4511.LDAPMessage())
                     message_id = int(request.getComponentByName('messageID'))
 
@@ -193,8 +166,9 @@ class LDAPServer(object):
                     try:
                         if not _is_request(operation):
                             raise DisconnectionProtocolError(f'Operation {operation} does not appear to be a standard '
-                                                             f'LDAP request')
+                                                             'LDAP request')
                         elif root_op in _unimplemented_ops:
+                            # TODO eliminate this condition!
                             raise LDAPError(f'{_uc_first(root_op)} operations not yet implemented')
                         elif operation == 'searchRequest':
                             try:
@@ -231,9 +205,11 @@ class LDAPServer(object):
                                                        str(e))
                     except LDAPError as e:
                         await send_ldap_result_message(writer, message_id, res_name, res_cls, 'other', message=str(e))
+                    except PyAsn1Error:
+                        raise
                     except (Exception, InternalError):
                         await send_ldap_result_message(writer, message_id, res_name, res_cls, 'other', matched_dn,
-                                                       'Unhandled exception during modify')
+                                                       'Internal server error')
                     else:
                         await send_ldap_result_message(writer, message_id, res_name, res_cls, 'success', matched_dn)
                 # } end `while len(buffer) > 0` decoded request object loop
@@ -250,13 +226,34 @@ class LDAPServer(object):
                 break
         # } end `while True` client recv loop
 
-    @staticmethod
-    def _create_ssl_context(cert_filename, private_key_filename, client_verify_use_system_ca, client_verify_ca_file,
-                            client_verify_ca_path):
+    def _create_ssl_context(self):
+        cert_filename = self.conf['certificate']
+        private_key_filename = self.conf['private_key']
+        client_verify_required = self.conf.mget('client_verify', 'required',
+                                                default=LDAPServer.DEFAULT_SSL_CLIENT_VERIFY_REQUIRED)
+        client_verify_use_system_ca = self.conf.mget('client_verify', 'use_system_ca_store',
+                                                     default=LDAPServer.DEFAULT_SSL_CLIENT_VERIFY_USE_SYSTEM_CA)
+        client_verify_ca_file = self.conf.mget('client_verify', 'ca_file',
+                                               default=LDAPServer.DEFAULT_SSL_CLIENT_VERIFY_CA_FILE)
+        client_verify_ca_path = self.conf.mget('client_verify', 'ca_path',
+                                               default=LDAPServer.DEFAULT_SSL_CLIENT_VERIFY_CA_PATH)
+        client_verify_check_crl = self.conf.mget('client_verify', 'check_crl',
+                                                 default=LDAPServer.DEFAULT_SSL_CLIENT_VERIFY_CHECK_CRL)
+
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(cert_filename, private_key_filename)
+        if client_verify_required:
+            ctx.verify_mode = ssl.CERT_REQUIRED
+        else:
+            ctx.verify_mode = ssl.CERT_NONE
+        if client_verify_check_crl:
+            ctx.verify_flags = ssl.VERIFY_CRL_CHECK_CHAIN | ssl.VERIFY_X509_TRUSTED_FIRST
         if client_verify_use_system_ca:
             ctx.load_default_certs(ssl.Purpose.CLIENT_AUTH)
+            if not client_verify_required:
+                ctx.verify_mode = ssl.CERT_OPTIONAL
         if client_verify_ca_file or client_verify_ca_path:
             ctx.load_verify_locations(client_verify_ca_file, client_verify_ca_path)
+            if not client_verify_required:
+                ctx.verify_mode = ssl.CERT_OPTIONAL
         return ctx
