@@ -6,7 +6,8 @@ from laurelin.ldap import rfc4511
 from laurelin.ldap.constants import Scope
 from laurelin.ldap.filter import parse
 
-from laurelin.server.memory_backend import MemoryBackend, LDAPObject
+from laurelin.server.memory_backend import MemoryBackend
+from laurelin.server.memory_backend.ldapobject import LDAPObject
 from laurelin.server.schema import get_schema
 
 
@@ -60,62 +61,8 @@ class TestMemoryBackend(unittest.TestCase):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(None)
 
-    def test_add_search(self):
-        async def run_test():
-            suffix = 'cn=test'
-            mb = MemoryBackend(suffix)
-
-            alpha0 = 'abcdefghijklmnopqrstuvwxyz'
-            alpha1 = 'bcdefghijklmnopqrstuvwxyza'
-
-            size = 3
-            rdns = []
-            for i in range(0, len(alpha0), size):
-                attr = alpha0[i:i+size]
-                val = alpha1[i:i+size]
-                rdns.append(attr + '=' + val)
-
-            for rdn0 in rdns:
-                mb.add(make_add_request(','.join((rdn0, suffix))))
-                for rdn1 in rdns:
-                    mb.add(make_add_request(','.join((rdn1, rdn0, suffix))))
-                    for rdn2 in rdns:
-                        mb.add(make_add_request(','.join((rdn2, rdn1, rdn0, suffix))))
-
-            with self.subTest(dn=suffix):
-                await asynclist(mb.search(make_search_request(suffix, Scope.BASE)))
-            for _ in range(10):
-                rdn0 = random.choice(rdns)
-                rdn1 = random.choice(rdns)
-                rdn2 = random.choice(rdns)
-                dn = ','.join((rdn2, rdn1, rdn0, suffix))
-                with self.subTest(dn=dn):
-                    await asynclist(mb.search(make_search_request(dn, Scope.BASE)))
-
-            with self.subTest('subtree'):
-                rdn0 = random.choice(rdns)
-                dn = ','.join((rdn0, suffix))
-                s = await asynclist(mb.search(make_search_request(dn, Scope.SUB)))
-                self.assertEqual(len(s), 91)
-
-            with self.subTest('subtree with limit'):
-                limit = 17
-                rdn0 = random.choice(rdns)
-                dn = ','.join((rdn0, suffix))
-                s = await asynclist(mb.search(make_search_request(dn, Scope.SUB, limit=limit)))
-                self.assertEqual(len(s), limit)
-
-            with self.subTest('subtree level 2'):
-                rdn0 = random.choice(rdns)
-                rdn1 = random.choice(rdns)
-                dn = ','.join((rdn1, rdn0, suffix))
-                s = await asynclist(mb.search(make_search_request(dn, Scope.SUB)))
-                self.assertEqual(len(s), 10)
-
-        self.loop.run_until_complete(run_test())
-
     def test_matches_filter(self):
-        obj = LDAPObject('cn=test', {
+        obj = LDAPObject('cn=test', attrs={
             'foo': ['bar', 'baz'],
             'abc': ['def'],
             'ghi': ['jkl', 'mno']
@@ -143,3 +90,61 @@ class TestMemoryBackend(unittest.TestCase):
         for filter in fail_filters:
             with self.subTest('expected fail filter', filter=filter):
                 self.assertFalse(obj.matches_filter(parse(filter)))
+
+    def test_add_search(self):
+        async def run_test():
+            suffix = 'cn=test'
+            mb = MemoryBackend({'suffix': suffix})
+
+            alpha0 = 'abcdefghijklmnopqrstuvwxyz'
+            alpha1 = 'bcdefghijklmnopqrstuvwxyza'
+
+            size = 3
+            rdns = []
+            for i in range(0, len(alpha0), size):
+                attr = alpha0[i:i+size]
+                val = alpha1[i:i+size]
+                rdns.append(attr + '=' + val)
+
+            for rdn0 in rdns:
+                await mb.add(make_add_request(','.join((rdn0, suffix))))
+                for rdn1 in rdns:
+                    await mb.add(make_add_request(','.join((rdn1, rdn0, suffix))))
+                    for rdn2 in rdns:
+                        await mb.add(make_add_request(','.join((rdn2, rdn1, rdn0, suffix))))
+
+            with self.subTest(dn=suffix):
+                await asynclist(mb.search(make_search_request(suffix, Scope.BASE)))
+            for _ in range(10):
+                rdn0 = random.choice(rdns)
+                rdn1 = random.choice(rdns)
+                rdn2 = random.choice(rdns)
+                dn = ','.join((rdn2, rdn1, rdn0, suffix))
+                with self.subTest('random base searches', dn=dn):
+                    await asynclist(mb.search(make_search_request(dn, Scope.BASE)))
+
+            expected_objects = 91
+            expected_count = expected_objects + 1  # include search done
+            with self.subTest('subtree'):
+                rdn0 = random.choice(rdns)
+                dn = ','.join((rdn0, suffix))
+                s = await asynclist(mb.search(make_search_request(dn, Scope.SUB)))
+                self.assertEqual(len(s), expected_count)
+
+            with self.subTest('subtree with limit'):
+                limit = 17
+                rdn0 = random.choice(rdns)
+                dn = ','.join((rdn0, suffix))
+                s = await asynclist(mb.search(make_search_request(dn, Scope.SUB, limit=limit)))
+                self.assertEqual(len(s), limit + 1)  # include search done
+
+            expected_objects = 10
+            expected_count = expected_objects + 1  # include search done
+            with self.subTest('subtree level 2'):
+                rdn0 = random.choice(rdns)
+                rdn1 = random.choice(rdns)
+                dn = ','.join((rdn1, rdn0, suffix))
+                s = await asynclist(mb.search(make_search_request(dn, Scope.SUB)))
+                self.assertEqual(len(s), expected_count)
+
+        self.loop.run_until_complete(run_test())

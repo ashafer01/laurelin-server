@@ -5,11 +5,9 @@ from laurelin.ldap.protoutils import split_unescaped
 
 
 class RDN(frozenset):
-    def __init__(self, *args):
-        frozenset.__init__(*args)
-        self._str = None
-
     def __str__(self):
+        if not hasattr(self, '_str'):
+            self._str = None
         if self._str is None:
             self._str = '+'.join(['='.join(ava) for ava in self])
         return self._str

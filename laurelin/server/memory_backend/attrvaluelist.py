@@ -30,10 +30,13 @@ class AttrValueList(list):
             raise LDAPError(f'Attribute {self._attr_type} {key} is not defined')
 
     def index(self, assertion_value, *args, **kwds):
-        equal = self._get_rule('equality_rule')
-        for i, value in enumerate(self):
-            if equal(value, assertion_value):
-                return i
+        try:
+            equal = self._get_rule('equality_rule')
+            for i, value in enumerate(self):
+                if equal(value, assertion_value):
+                    return i
+        except ValueError:
+            raise LDAPError('ValueError occurred while looking for matching value')
         raise ValueError(f'Attribute value "{assertion_value}" does not exist')
 
     def remove(self, item):

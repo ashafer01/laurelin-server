@@ -101,11 +101,13 @@ def _uc_first(string):
 
 
 def _rfc4511_response_class(root_op):
-    if root_op == 'modDN':
-        cls_name = 'ModifyDNResponse'
+    if root_op == 'search':
+        return rfc4511.SearchResultDone
+    elif root_op == 'modDN':
+        return rfc4511.ModifyDNResponse
     else:
         cls_name = _uc_first(root_op) + 'Response'
-    return getattr(rfc4511, cls_name)
+        return getattr(rfc4511, cls_name)
 
 
 class LDAPServer(object):
@@ -138,11 +140,10 @@ class LDAPServer(object):
             raise LDAPError(f'Unsupported scheme {scheme}')
 
     async def _start_server(self, path=None, host=None, port=None, ssl=None):
-        kwds = {'ssl': ssl}
         if path is not None:
-            await asyncio.start_unix_server(self.client, path=path, **kwds)
+            await asyncio.start_unix_server(self.client, path=path, ssl=ssl)
         else:
-            await asyncio.start_server(self.client, host=host, port=port, **kwds)
+            await asyncio.start_server(self.client, host=host, port=port, ssl=ssl)
 
     async def client(self, reader, writer):
         buffer = b''

@@ -66,4 +66,4 @@ class MatchingRule(BaseSchemaElement):
         elif self['usage'] == 'substring':
             raise RuntimeError('substring matching rules cannot be called, use AttrValueList.match_substrings()')
         else:
-            raise ValueError('invalid matching rule usage param')
+            raise InvalidSchemaError('invalid matching rule usage param')

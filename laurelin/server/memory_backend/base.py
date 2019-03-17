@@ -5,6 +5,7 @@ from laurelin.ldap.constants import Scope
 from laurelin.ldap.protoutils import split_unescaped, seq_to_list
 
 from .ldapobject import LDAPObject
+from .. import search_results
 from ..backend import AbstractBackend
 
 
@@ -13,7 +14,7 @@ class MemoryBackend(AbstractBackend):
         AbstractBackend.__init__(self, conf)
         self.suffix = conf['suffix']
         self._dit = LDAPObject(self.suffix)
-        self._root_dse = LDAPObject('', {
+        self._root_dse = LDAPObject('', attrs={
             'namingContexts': [self.suffix],
             'defaultNamingContext': [self.suffix],
             'supportedLDAPVersion': ['3'],
@@ -34,7 +35,7 @@ class MemoryBackend(AbstractBackend):
 
         if base_dn == '' and scope == Scope.BASE:
             yield self._root_dse
-            yield search_request.Done('')
+            yield search_results.Done('')
             return
 
         fil = search_request.getComponentByName('filter') or None
@@ -54,7 +55,7 @@ class MemoryBackend(AbstractBackend):
         if scope == Scope.BASE:
             if base_obj.matches_filter(fil):
                 yield base_obj.to_result(attrs)
-            yield search_request.Done(base_obj.dn_str)
+            yield search_results.Done(base_obj.dn_str)
             return
         elif scope == Scope.ONE:
             result_gen = base_obj.onelevel(fil)
@@ -69,7 +70,7 @@ class MemoryBackend(AbstractBackend):
             n += 1
             if limit and n >= limit:
                 break
-        yield search_request.Done(base_obj.dn_str)
+        yield search_results.Done(base_obj.dn_str)
 
     async def compare(self, compare_request):
         dn = str(compare_request.getComponentByName('entry'))
