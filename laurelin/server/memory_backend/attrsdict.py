@@ -17,8 +17,9 @@ class AttrsDict(CaseIgnoreDict):
         """Return a deep copy of self optionally limited to attrs"""
         ret = AttrsDict()
         for attr, vals in self.items():
-            if attrs and attr not in attrs:
-                continue
+            if attrs:
+                if attr not in attrs:
+                    continue
             ret[attr] = AttrValueList(attr)
             for val in vals:
                 ret[attr].append(val)

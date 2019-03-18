@@ -1,12 +1,15 @@
 """
 In-memory ephemeral LDAP backend store
 """
+import logging
 from laurelin.ldap.constants import Scope
 from laurelin.ldap.protoutils import split_unescaped, seq_to_list
 
 from .ldapobject import LDAPObject
 from .. import search_results
 from ..backend import AbstractBackend
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryBackend(AbstractBackend):
@@ -42,6 +45,7 @@ class MemoryBackend(AbstractBackend):
             attrs = None
 
         if base_dn == '' and scope == Scope.BASE:
+            logger.debug('Got root DSE request')
             yield self._root_dse.to_result(attrs)
             yield search_results.Done('')
             return

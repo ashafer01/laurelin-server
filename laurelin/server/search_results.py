@@ -19,6 +19,7 @@ class Entry(object):
             _vals = rfc4511.Vals()
             for i, val in enumerate(vals):
                 _vals.setComponentByPosition(i, rfc4511.AttributeValue(val))
+            _attr.setComponentByName('vals', _vals)
             attrs.setComponentByPosition(j, _attr)
             j += 1
         res.setComponentByName('attributes', attrs)
@@ -41,7 +42,7 @@ class Done(object):
     def to_proto(self):
         op = rfc4511.ProtocolOp()
         srd = rfc4511.SearchResultDone()
-        srd.setComponentByName('resultCode', rfc4511.ResultCode('success'))
+        srd.setComponentByName('resultCode', self.result_code)
         srd.setComponentByName('matchedDN', self.matched_dn)
         srd.setComponentByName('diagnosticMessage', self.message)
         op.setComponentByName('searchResDone', srd)

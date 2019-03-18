@@ -135,13 +135,13 @@ class LDAPServer(object):
         scheme, netloc = parse_host_uri(self.uri)
         if scheme == 'ldap':
             host, port = host_port(netloc, default_port=389)
-            server = await asyncio.start_server(self.client, host=host, port=port, start_serving=True)
+            server = await asyncio.start_server(self.client, host=host, port=port)
         elif scheme == 'ldaps':
             host, port = host_port(netloc, default_port=636)
             ctx = self._create_ssl_context()
-            server = await asyncio.start_server(self.client, host=host, port=port, ssl=ctx, start_serving=True)
+            server = await asyncio.start_server(self.client, host=host, port=port, ssl=ctx)
         elif scheme == 'ldapi':
-            server = await asyncio.start_unix_server(self.client, path=netloc, start_serving=True)
+            server = await asyncio.start_unix_server(self.client, path=netloc)
         else:
             raise ConfigError(f'Unsupported scheme {scheme}')
         async with server:
@@ -192,6 +192,8 @@ class LDAPServer(object):
                                 async for result in self.backend.search(req_obj):
                                     lm = pack(message_id, result.to_proto())  # TODO controls?
                                     await send(writer, lm)
+                                logger.debug(f'{peername}: Search successfully completed')
+                                continue
                             except BaseObjectNotFound as e:
                                 base_dn = matched_dn
                                 matched_dn = e.args[1] or '<none>'
@@ -221,6 +223,7 @@ class LDAPServer(object):
                             logger.debug(f'{peername}: Received {operation}')
                             await backend_method(req_obj)
                     except ResultCodeError as e:
+                        logger.debug(f'{peername}: {operation} failed with result {e.RESULT_CODE}: {e}')
                         await send_ldap_result_message(writer, message_id, res_name, res_cls, e.RESULT_CODE, matched_dn,
                                                        str(e))
                     except LDAPError as e:
