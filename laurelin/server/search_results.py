@@ -22,7 +22,7 @@ class Entry(object):
             attrs.setComponentByPosition(j, _attr)
             j += 1
         res.setComponentByName('attributes', attrs)
-        op.setComponentByName('searchResultEntry', res)
+        op.setComponentByName('searchResEntry', res)
         return op
 
 
@@ -44,5 +44,5 @@ class Done(object):
         srd.setComponentByName('resultCode', rfc4511.ResultCode('success'))
         srd.setComponentByName('matchedDN', self.matched_dn)
         srd.setComponentByName('diagnosticMessage', self.message)
-        op.setComponentByName('searchResultDone', srd)
+        op.setComponentByName('searchResDone', srd)
         return op

@@ -1,0 +1,7 @@
+backends:
+  test_back_1:
+    type: memory
+    suffix: o=testing
+default_backend: test_back_1
+servers:
+  "ldap://127.0.0.1:10389": {}

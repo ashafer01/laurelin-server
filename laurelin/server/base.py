@@ -1,10 +1,13 @@
 import asyncio
+import logging
 from .config import Config
 from .ldapserver import LDAPServer
 from .schema import get_schema
 
 # TODO probly gonna need to dynamically import backends
 from .memory_backend import MemoryBackend
+
+logger = logging.getLogger('laurelin.server')
 
 _backend_types = {
     'memory': MemoryBackend,
@@ -24,10 +27,18 @@ class LaurelinServer(object):
             try:
                 backend_name = server_conf['use_backend']
             except KeyError:
-                backend_name = conf['default_backend']
+                try:
+                    backend_name = conf['default_backend']
+                except KeyError:
+                    if len(self.backends) == 1:
+                        backend_name = list(self.backends.keys())[0]
+                    else:
+                        raise
+            logger.debug(f'Setting up LDAPServer {uri} with backend {backend_name}')
             self.servers.append(LDAPServer(uri, Config(server_conf), self.backends[backend_name]))
 
     async def run(self):
+        logger.debug('Running LaurelinServer')
         await asyncio.gather(*[server.run() for server in self.servers])
 
 

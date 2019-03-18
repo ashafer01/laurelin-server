@@ -1,6 +1,9 @@
+import logging
 import yaml
 
 from .exceptions import *
+
+logger = logging.getLogger(__name__)
 
 
 class Config(dict):
@@ -8,6 +11,7 @@ class Config(dict):
         try:
             with open(fn) as f:
                 self.load_stream(f)
+            logger.debug(f'Loaded config file {fn}')
         except OSError:
             # failed to open config file
             raise

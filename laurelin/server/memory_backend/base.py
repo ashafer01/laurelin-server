@@ -33,11 +33,6 @@ class MemoryBackend(AbstractBackend):
         base_dn = str(search_request.getComponentByName('baseObject'))
         scope = search_request.getComponentByName('scope')
 
-        if base_dn == '' and scope == Scope.BASE:
-            yield self._root_dse
-            yield search_results.Done('')
-            return
-
         fil = search_request.getComponentByName('filter') or None
 
         _attrs = search_request.getComponentByName('attributes')
@@ -45,6 +40,11 @@ class MemoryBackend(AbstractBackend):
             attrs = seq_to_list(_attrs)
         else:
             attrs = None
+
+        if base_dn == '' and scope == Scope.BASE:
+            yield self._root_dse.to_result(attrs)
+            yield search_results.Done('')
+            return
 
         # TODO implement all search parameters
         #search_request.getComponentByName('derefAliases')
