@@ -8,7 +8,10 @@ from pyasn1.codec.ber.decoder import decode as ber_decode
 from pyasn1.error import PyAsn1Error, SubstrateUnderrunError
 from laurelin.ldap import rfc4511
 from laurelin.ldap.net import parse_host_uri, host_port
+from laurelin.ldap.constants import Scope
 
+from . import search_results
+from .dn import parse_dn
 from .exceptions import *
 from .backend import AbstractBackend
 from .config import Config
@@ -128,10 +131,35 @@ class LDAPServer(object):
 
     OID_NOTICE_OF_DISCONNECTION = '1.3.6.1.4.1.1466.20036'  # RFC 4511 sec 4.4.1
 
-    def __init__(self, uri: str, conf: Config, backend: AbstractBackend):
+    def __init__(self, uri: str, conf: Config, dit: dict):
         self.uri = uri
         self.conf = conf
-        self.backend = backend
+        self.dit = dit
+
+        # Right now this is going to be the same for every LDAPServer so maybe do once in LaurelinServer
+        #  BUT depending on other things it may be different for some later, so TBD
+        nc = []
+        dnc = []
+        for dn, backend in self.dit.items():
+            nc.append(str(dn))
+            if backend.default:
+                if not dnc:
+                    dnc.append(str(dn))
+                else:
+                    raise ConfigError('Multiple DIT nodes marked as default')
+
+        if not dnc and len(nc) == 1:
+            dnc.append(nc[0])
+
+        if not nc:
+            raise ConfigError('No DIT nodes configured')
+
+        self.root_dse = search_results.Entry('', {
+            'namingContexts': nc,
+            'defaultNamingContext': dnc,
+            'supportedLDAPVersion': ['3'],
+            'vendorName': ['laurelin'],
+        })
 
     async def run(self):
         scheme, netloc = parse_host_uri(self.uri)
@@ -148,6 +176,17 @@ class LDAPServer(object):
             raise ConfigError(f'Unsupported scheme {scheme}')
         async with server:
             await server.serve_forever()
+
+    def _backend(self, dn) -> (AbstractBackend, None):
+        if dn == '':
+            return
+        dn = parse_dn(dn)
+        suffixes = list(self.dit.keys())
+        suffixes.sort(key=lambda s: len(s), reverse=True)
+        for suffix in suffixes:
+            if dn[-len(suffix):] == suffix:
+                return self.dit[suffix]
+        raise NoSuchObjectError(f'Could not find a backend to handle the DN {dn}')
 
     async def client(self, reader, writer):
         peername = writer.get_extra_info("peername")
@@ -181,6 +220,8 @@ class LDAPServer(object):
                     matched_dn = str(req_obj.getComponentByName(_dn_components.get(operation, 'entry')))
 
                     try:
+                        backend = self._backend(matched_dn)
+
                         if not _is_request(operation):
                             raise DisconnectionProtocolError(f'Operation {operation} does not appear to be a standard '
                                                              'LDAP request')
@@ -193,8 +234,19 @@ class LDAPServer(object):
                             pass
                         elif operation == 'searchRequest':
                             logger.debug(f'{peername}: Received {operation}')
+
+                            # Handle Root DSE request
+                            scope = req_obj.getComponentByName('scope')
+                            if matched_dn == '' and scope == Scope.BASE:
+                                logger.debug(f'{peername}: Got root DSE request')
+                                lm = pack(message_id, self.root_dse.to_proto())
+                                await send(writer, lm)
+                                lm = pack(message_id, search_results.Done('').to_proto())
+                                await send(writer, lm)
+                                continue
+
                             try:
-                                async for result in self.backend.search(req_obj):
+                                async for result in backend.search(req_obj):
                                     lm = pack(message_id, result.to_proto())  # TODO controls?
                                     await send(writer, lm)
                                 logger.debug(f'{peername}: Search successfully completed')
@@ -207,7 +259,7 @@ class LDAPServer(object):
                                                         f'Could not find: {unmatched}')
                         elif operation == 'compareRequest':
                             logger.debug(f'{peername}: Received {operation}')
-                            cmp = await self.backend.compare(req_obj)
+                            cmp = await backend.compare(req_obj)
 
                             if cmp is True:
                                 result = 'compareTrue'
@@ -224,20 +276,21 @@ class LDAPServer(object):
                             continue
                         else:
                             # This handles all the normal methods
-                            backend_method = getattr(self.backend, _method_name(root_op))
+                            backend_method = getattr(backend, _method_name(root_op))
                             logger.debug(f'{peername}: Received {operation}')
                             await backend_method(req_obj)
                     except ResultCodeError as e:
-                        logger.debug(f'{peername}: {operation} failed with result {e.RESULT_CODE}: {e}')
+                        logger.debug(f'{peername}: {operation} failed with result {e.RESULT_CODE}: {e}\n'
+                                     f'{traceback.format_exc()}')
                         await send_ldap_result_message(writer, message_id, res_name, res_cls, e.RESULT_CODE, matched_dn,
                                                        str(e))
                     except LDAPError as e:
-                        logger.error(f'{peername}: Sending error for {e.__class__.__name__}: {e}')
+                        logger.error(f'{peername}: Sending error for {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
                         await send_ldap_result_message(writer, message_id, res_name, res_cls, 'other', message=str(e))
                     except PyAsn1Error:
                         raise
                     except (Exception, InternalError) as e:
-                        logger.error(f'{peername}: Got {e.__class__.__name__}: {e}')
+                        logger.error(f'{peername}: Got {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
                         await send_ldap_result_message(writer, message_id, res_name, res_cls, 'other', matched_dn,
                                                        'Internal server error')
                     else:

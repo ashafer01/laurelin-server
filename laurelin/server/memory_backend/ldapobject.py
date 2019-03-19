@@ -92,6 +92,8 @@ class LDAPObject(object):
         elif filter_type == 'present':
             present_obj = fil.getComponent()
             attr = str(present_obj)
+            if attr.lower() == 'objectclass':
+                return True
             return attr in self.attrs
         elif filter_type == 'approxMatch':
             ava = fil.getComponent()

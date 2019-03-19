@@ -1,7 +1,8 @@
-backends:
-  test_back_1:
-    type: memory
-    suffix: o=testing
-default_backend: test_back_1
+dit:
+  "o=testing":
+    data_backend: memory
+  "o=test2":
+    default: true
+    data_backend: memory
 servers:
   "ldap://127.0.0.1:10389": {}

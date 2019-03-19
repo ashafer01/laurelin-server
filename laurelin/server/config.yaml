@@ -1,18 +1,13 @@
 schema:
   directory: /some/dir
   allow_undefined_attribute_types: true
-backends:
-  test_memory_1:
-    type: memory
-    suffix: o=laurelin
-default_backend: test_memory_1
+dit:
+  "o=laurelin":
+    data_backend: memory
 servers:
-  "ldap://0.0.0.0:389":
-    use_backend: test_memory_1
-  "ldapi:///var/run/laurelin-server.socket":
-    use_backend: test_memory_1
+  "ldap://0.0.0.0:389": {}
+  "ldapi:///var/run/laurelin-server.socket": {}
   "ldaps://0.0.0.0:636":
-    use_backend: test_memory_1
     certificate: "/etc/laurelin/server/cert_chain.pem"
     private_key: "/etc/laurelin/server/private_key.pem"
     client_verify:

@@ -1,6 +1,8 @@
 class AbstractBackend(object):
-    def __init__(self, conf):
+    def __init__(self, suffix, conf):
+        self.suffix = suffix
         self.conf = conf
+        self.default = self.conf.get('default', False)
 
     async def search(self, search_request):
         yield NotImplemented()

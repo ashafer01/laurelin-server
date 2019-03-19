@@ -8,21 +8,15 @@ from laurelin.ldap.protoutils import split_unescaped, seq_to_list
 from .ldapobject import LDAPObject
 from .. import search_results
 from ..backend import AbstractBackend
+from ..exceptions import *
 
 logger = logging.getLogger(__name__)
 
 
 class MemoryBackend(AbstractBackend):
-    def __init__(self, conf):
-        AbstractBackend.__init__(self, conf)
-        self.suffix = conf['suffix']
-        self._dit = LDAPObject(self.suffix)
-        self._root_dse = LDAPObject('', attrs={
-            'namingContexts': [self.suffix],
-            'defaultNamingContext': [self.suffix],
-            'supportedLDAPVersion': ['3'],
-            'vendorName': ['laurelin'],
-        })
+    def __init__(self, suffix, conf):
+        AbstractBackend.__init__(self, suffix, conf)
+        self._dit = LDAPObject(suffix)
 
     async def search(self, search_request):
         _limit = search_request.getComponentByName('sizeLimit')
@@ -44,16 +38,13 @@ class MemoryBackend(AbstractBackend):
         else:
             attrs = None
 
-        if base_dn == '' and scope == Scope.BASE:
-            logger.debug('Got root DSE request')
-            yield self._root_dse.to_result(attrs)
-            yield search_results.Done('')
-            return
-
         # TODO implement all search parameters
         #search_request.getComponentByName('derefAliases')
         #search_request.getComponentByName('timeLimit')
         #search_request.getComponentByName('typesOnly')
+
+        if base_dn == '' and scope == Scope.BASE:
+            raise InternalError('Root DSE search request was dispatched to backend')
 
         base_obj = self._dit.get(base_dn)
         if scope == Scope.BASE:

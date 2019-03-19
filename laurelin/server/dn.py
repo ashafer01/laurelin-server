@@ -1,3 +1,5 @@
+from typing import Iterable
+
 from .exceptions import *
 from .schema import get_schema
 
@@ -16,9 +18,14 @@ class RDN(frozenset):
         return f'RDN({repr(str(self))})'
 
 
-class DN(list):
-    def __init__(self, original=None):
-        list.__init__(self)
+class DN(tuple):
+    def __new__(cls, original=None, rdns: Iterable = None):
+        if rdns:
+            return tuple.__new__(DN, rdns)
+        else:
+            return tuple.__new__(DN)
+
+    def __init__(self, original=None, rdns: Iterable = None):
         self._original = original
         self._stringified = None
 
@@ -38,11 +45,9 @@ class DN(list):
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            ndn = DN()
-            ndn.extend(list.__getitem__(self, item))
-            return ndn
+            return DN(rdns=tuple.__getitem__(self, item))
         else:
-            return list.__getitem__(self, item)
+            return tuple.__getitem__(self, item)
 
 
 def parse_rdn(rdn):
@@ -72,7 +77,7 @@ def parse_dn(dn):
     if isinstance(dn, DN):
         return dn
     str_rdns = split_unescaped(dn, ',')
-    dn = DN(dn)
+    rdns = []
     for rdn in str_rdns:
-        dn.append(parse_rdn(rdn))
-    return dn
+        rdns.append(parse_rdn(rdn))
+    return DN(dn, rdns)

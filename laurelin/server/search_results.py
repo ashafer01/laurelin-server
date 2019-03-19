@@ -14,6 +14,8 @@ class Entry(object):
         attrs = rfc4511.PartialAttributeList()
         j = 0
         for attr, vals in self.attrs.items():
+            if not vals:
+                continue
             _attr = rfc4511.PartialAttribute()
             _attr.setComponentByName('type', rfc4511.AttributeDescription(attr))
             _vals = rfc4511.Vals()
