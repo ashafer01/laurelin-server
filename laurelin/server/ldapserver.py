@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import ssl
+import traceback
 
 from pyasn1.codec.ber.encoder import encode as ber_encode
 from pyasn1.codec.ber.decoder import decode as ber_decode
@@ -56,6 +57,7 @@ async def send_ldap_result_message(writer, message_id, op_name, cls, result_code
 _dn_components = {
     'searchRequest': 'baseObject',
     'modifyRequest': 'object',
+    'bindRequest': 'name',
 }
 
 _request_suffixes = ('Request', 'Req')
@@ -64,7 +66,7 @@ _root_op_names = {'bind', 'unbind', 'search', 'add', 'modify', 'modDN', 'abandon
 # TODO abandon wont actually work right now -
 #  need a way to interrupt the async for loop in searchRequest handling
 # TODO get rid of this object!
-_unimplemented_ops = {'bind', 'abandon', 'extended'}
+_unimplemented_ops = {'abandon', 'extended'}
 
 _request_str = 'Request'
 
@@ -165,17 +167,16 @@ class LDAPServer(object):
                     _op = request.getComponentByName('protocolOp')
                     operation = _op.getName()
                     root_op = _root_op(operation)
-                    req_obj = _op.getComponent()
-
                     res_name = _response_name(root_op)
 
-                    logger.debug(f'{peername}: Received object operation={operation} root_op={root_op} '
-                                 f'res_name={res_name}')
+                    logger.debug(f'{peername}: Received object message_id={message_id} operation={operation} '
+                                 f'root_op={root_op} res_name={res_name}')
 
                     if operation == 'unbindRequest':
                         logger.debug(f'{peername}: Client has unbound')
                         return
 
+                    req_obj = _op.getComponent()
                     res_cls = _rfc4511_response_class(root_op)
                     matched_dn = str(req_obj.getComponentByName(_dn_components.get(operation, 'entry')))
 
@@ -186,6 +187,10 @@ class LDAPServer(object):
                         elif root_op in _unimplemented_ops:
                             # TODO eliminate this condition!
                             raise LDAPError(f'{_uc_first(root_op)} operations not yet implemented')
+                        elif operation == 'bindRequest':
+                            # TODO actually do things here
+                            logger.debug(f'{peername}: Client has bound')
+                            pass
                         elif operation == 'searchRequest':
                             logger.debug(f'{peername}: Received {operation}')
                             try:
@@ -242,15 +247,13 @@ class LDAPServer(object):
             except SubstrateUnderrunError:
                 continue
             except (PyAsn1Error, DisconnectionProtocolError) as e:
-                logger.error(f'{peername}: Got fatal disconnect error {e.__class__.__name__}: {e}')
+                logger.error(f'{peername}: Got fatal disconnect error {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
                 xr = ldap_result(rfc4511.ExtendedResponse, 'protocolError', message=str(e))
                 xr.setComponentByName('responseName', LDAPServer.OID_NOTICE_OF_DISCONNECTION)
                 op = protocol_op('extendedResp', xr)
                 lm = pack(0, op)
                 await send(writer, lm)
-                await writer.close()
-                await reader.close()
-                break
+                return
         # } end `while True` client recv loop
 
     def _create_ssl_context(self):
