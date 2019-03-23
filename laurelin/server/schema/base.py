@@ -1,3 +1,4 @@
+import logging
 import os.path
 
 from collections import defaultdict
@@ -12,6 +13,8 @@ from laurelin.ldap.utils import CaseIgnoreDict, re_anchor
 
 from ..exceptions import *
 from ..config import Config
+
+logger = logging.getLogger('laurelin.server.schema')
 
 
 _kind_factories = {
@@ -81,11 +84,13 @@ class Schema(object):
             with resource_stream(__name__, fn + '.yaml') as f:
                 self.load_stream(f)
 
+        logger.debug('Loaded built-in schema')
+
     def load_conf_dir(self):
         try:
             self.load_dir(self.conf['directory'])
         except KeyError:
-            pass
+            logger.debug('No schema directory configured')
 
     def load_dir(self, schema_dir):
         if not os.path.isdir(schema_dir):
@@ -133,6 +138,8 @@ class Schema(object):
             for kind in 'object_classes', 'attribute_types':
                 for obj in self._schema[kind].values():
                     obj.resolve()
+
+            logger.debug('Schema references have been resolved')
         except UndefinedSchemaElementError:
             raise InvalidSchemaError('missing inherited schema element')
 

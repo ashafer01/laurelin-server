@@ -1,3 +1,15 @@
+logging:
+  # standard python logging dict config below here
+  # https://docs.python.org/3/library/logging.config.html#logging-config-dictschema
+  version: 1
+  handlers:
+    console:
+      class: logging.StreamHandler
+      level: DEBUG
+  loggers:
+    "laurelin.server":
+      level: DEBUG
+      handlers: [console]
 schema:
   directory: /some/dir
   allow_undefined_attribute_types: true

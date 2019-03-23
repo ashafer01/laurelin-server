@@ -1,20 +1,12 @@
-import logging
 import yaml
 
 from .exceptions import *
 
-logger = logging.getLogger(__name__)
-
 
 class Config(dict):
     def load_file(self, fn):
-        try:
-            with open(fn) as f:
-                self.load_stream(f)
-            logger.debug(f'Loaded config file {fn}')
-        except OSError:
-            # failed to open config file
-            raise
+        with open(fn) as f:
+            self.load_stream(f)
 
     def load_stream(self, f):
         data = yaml.safe_load(f)

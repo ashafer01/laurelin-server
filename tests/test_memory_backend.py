@@ -94,7 +94,7 @@ class TestMemoryBackend(unittest.TestCase):
     def test_add_search(self):
         async def run_test():
             suffix = 'cn=test'
-            mb = MemoryBackend({'suffix': suffix})
+            mb = MemoryBackend(suffix, {'data_backend': 'memory'})
 
             alpha0 = 'abcdefghijklmnopqrstuvwxyz'
             alpha1 = 'bcdefghijklmnopqrstuvwxyza'

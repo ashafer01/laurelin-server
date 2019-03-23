@@ -211,7 +211,10 @@ class LDAPServer(object):
                     logger.debug(f'{peername}: Received object message_id={message_id} operation={operation} '
                                  f'root_op={root_op} res_name={res_name}')
 
+                    # TODO this is only out here to bypass the response lookup below... there's probably
+                    #  a better solution
                     if operation == 'unbindRequest':
+                        # TODO actually do things here
                         logger.debug(f'{peername}: Client has unbound')
                         return
 
