@@ -13,7 +13,7 @@ class AttrsDict(CaseIgnoreDict):
         """
         return self.get(attr, AttrValueList(attr))
 
-    def deepcopy(self, attrs=None):
+    def deepcopy(self, attrs=None, types_only=False):
         """Return a deep copy of self optionally limited to attrs"""
         ret = AttrsDict()
         for attr, vals in self.items():
@@ -21,6 +21,8 @@ class AttrsDict(CaseIgnoreDict):
                 if attr not in attrs:
                     continue
             ret[attr] = AttrValueList(attr)
+            if types_only:
+                continue
             for val in vals:
                 ret[attr].append(val)
         return ret

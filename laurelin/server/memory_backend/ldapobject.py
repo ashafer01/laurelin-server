@@ -41,8 +41,8 @@ class LDAPObject(object):
         self.attrs = attrs
         self.children = {}
 
-    def to_result(self, attrs=None):
-        new_attrs = self.attrs.deepcopy(attrs)
+    def to_result(self, attrs=None, types_only=False):
+        new_attrs = self.attrs.deepcopy(attrs, types_only)
         return search_results.Entry(self.dn_str, new_attrs)
 
     def validate(self):

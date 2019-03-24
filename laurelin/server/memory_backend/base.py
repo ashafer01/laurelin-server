@@ -10,7 +10,7 @@ from .. import search_results
 from ..backend import AbstractBackend
 from ..exceptions import *
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('laurelin.server.memory_backend')
 
 
 class MemoryBackend(AbstractBackend):
@@ -19,16 +19,11 @@ class MemoryBackend(AbstractBackend):
         self._dit = LDAPObject(suffix)
 
     async def search(self, search_request):
-        _limit = search_request.getComponentByName('sizeLimit')
-        if _limit.isValue:
-            limit = int(_limit)
-            if limit == 0:
-                limit = None
-        else:
-            limit = None
-
         base_dn = str(search_request.getComponentByName('baseObject'))
         scope = search_request.getComponentByName('scope')
+
+        if base_dn == '' and scope == Scope.BASE:
+            raise InternalError('Root DSE search request was dispatched to backend')
 
         fil = search_request.getComponentByName('filter') or None
 
@@ -38,18 +33,19 @@ class MemoryBackend(AbstractBackend):
         else:
             attrs = None
 
+        _types_only = search_request.getComponentByName('typesOnly')
+        if _types_only.isValue:
+            types_only = bool(_types_only)
+        else:
+            types_only = False
+
         # TODO implement all search parameters
         #search_request.getComponentByName('derefAliases')
-        #search_request.getComponentByName('timeLimit')
-        #search_request.getComponentByName('typesOnly')
-
-        if base_dn == '' and scope == Scope.BASE:
-            raise InternalError('Root DSE search request was dispatched to backend')
 
         base_obj = self._dit.get(base_dn)
         if scope == Scope.BASE:
             if base_obj.matches_filter(fil):
-                yield base_obj.to_result(attrs)
+                yield base_obj.to_result(attrs, types_only)
             yield search_results.Done(base_obj.dn_str)
             return
         elif scope == Scope.ONE:
@@ -59,12 +55,8 @@ class MemoryBackend(AbstractBackend):
         else:
             raise ValueError('scope')
 
-        n = 0
         async for item in result_gen:
-            yield item.to_result(attrs)
-            n += 1
-            if limit and n >= limit:
-                break
+            yield item.to_result(attrs, types_only)
         yield search_results.Done(base_obj.dn_str)
 
     async def compare(self, compare_request):

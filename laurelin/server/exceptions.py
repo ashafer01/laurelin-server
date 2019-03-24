@@ -84,3 +84,7 @@ class NoSuchAttributeError(ResultCodeError):
 
 class EntryAlreadyExistsError(ResultCodeError):
     RESULT_CODE = 'entryAlreadyExists'
+
+
+class TimeLimitExceededError(ResultCodeError):
+    RESULT_CODE = 'timeLimitExceeded'

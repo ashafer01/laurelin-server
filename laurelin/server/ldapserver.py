@@ -3,6 +3,7 @@ import logging
 import ssl
 import traceback
 
+from async_timeout import timeout
 from pyasn1.codec.ber.encoder import encode as ber_encode
 from pyasn1.codec.ber.decoder import decode as ber_decode
 from pyasn1.error import PyAsn1Error, SubstrateUnderrunError
@@ -66,10 +67,8 @@ _dn_components = {
 _request_suffixes = ('Request', 'Req')
 _root_op_names = {'bind', 'unbind', 'search', 'add', 'modify', 'modDN', 'abandon', 'extended', 'compare'}
 
-# TODO abandon wont actually work right now -
-#  need a way to interrupt the async for loop in searchRequest handling
 # TODO get rid of this object!
-_unimplemented_ops = {'abandon', 'extended'}
+_unimplemented_ops = {'extended'}
 
 _request_str = 'Request'
 
@@ -154,6 +153,10 @@ class LDAPServer(object):
         if not nc:
             raise ConfigError('No DIT nodes configured')
 
+        # sorted list of DIT suffixes - most RDNs first, otherwise order does not matter
+        self.suffixes = list(self.dit.keys())
+        self.suffixes.sort(key=lambda s: len(s), reverse=True)
+
         self.root_dse = search_results.Entry('', {
             'namingContexts': nc,
             'defaultNamingContext': dnc,
@@ -161,29 +164,29 @@ class LDAPServer(object):
             'vendorName': ['laurelin'],
         })
 
+        self.server = None
+
     async def run(self):
         scheme, netloc = parse_host_uri(self.uri)
         if scheme == 'ldap':
             host, port = host_port(netloc, default_port=389)
-            server = await asyncio.start_server(self.client, host=host, port=port)
+            self.server = await asyncio.start_server(self.client, host=host, port=port)
         elif scheme == 'ldaps':
             host, port = host_port(netloc, default_port=636)
             ctx = self._create_ssl_context()
-            server = await asyncio.start_server(self.client, host=host, port=port, ssl=ctx)
+            self.server = await asyncio.start_server(self.client, host=host, port=port, ssl=ctx)
         elif scheme == 'ldapi':
-            server = await asyncio.start_unix_server(self.client, path=netloc)
+            self.server = await asyncio.start_unix_server(self.client, path=netloc)
         else:
             raise ConfigError(f'Unsupported scheme {scheme}')
-        async with server:
-            await server.serve_forever()
+        async with self.server:
+            await self.server.serve_forever()
 
     def _backend(self, dn) -> (AbstractBackend, None):
         if dn == '':
             return
         dn = parse_dn(dn)
-        suffixes = list(self.dit.keys())
-        suffixes.sort(key=lambda s: len(s), reverse=True)
-        for suffix in suffixes:
+        for suffix in self.suffixes:
             if dn[-len(suffix):] == suffix:
                 return self.dit[suffix]
         raise NoSuchObjectError(f'Could not find a backend to handle the DN {dn}')
@@ -205,24 +208,37 @@ class LDAPServer(object):
 
                     _op = request.getComponentByName('protocolOp')
                     operation = _op.getName()
+                    req_obj = _op.getComponent()
                     root_op = _root_op(operation)
                     res_name = _response_name(root_op)
 
                     logger.debug(f'{peername}: Received object message_id={message_id} operation={operation} '
                                  f'root_op={root_op} res_name={res_name}')
 
-                    # TODO this is only out here to bypass the response lookup below... there's probably
-                    #  a better solution
+                    res_cls = None
+                    matched_dn = ''
+
+                    # Requests with no response
                     if operation == 'unbindRequest':
                         # TODO actually do things here
-                        logger.debug(f'{peername}: Client has unbound')
+                        logger.info(f'{peername}: Client has unbound')
                         return
-
-                    req_obj = _op.getComponent()
-                    res_cls = _rfc4511_response_class(root_op)
-                    matched_dn = str(req_obj.getComponentByName(_dn_components.get(operation, 'entry')))
+                    elif operation == 'abandonRequest':
+                        # As of right now I can't fathom a way to actually get abandon to work with asyncio
+                        # Best I can think of is putting a very short timeout on the read() call in between each
+                        # search entry response, (and doing a bunch of unpleasantness to structure the code so that
+                        # works) which would of course degrade performance a lot, just to support, what is in my
+                        # experience, a feature that is never used.
+                        #
+                        # Unfortunately RFC4511 specifies that interrupting result entries is the one thing we MUST
+                        # do, but it also says clients MUST NOT care if the abandon worked, so ... ?
+                        logger.warning('Received abandon request - ignoring')
+                        continue
 
                     try:
+                        res_cls = _rfc4511_response_class(root_op)
+                        matched_dn = str(req_obj.getComponentByName(_dn_components.get(operation, 'entry')))
+
                         backend = self._backend(matched_dn)
 
                         if not _is_request(operation):
@@ -233,10 +249,10 @@ class LDAPServer(object):
                             raise LDAPError(f'{_uc_first(root_op)} operations not yet implemented')
                         elif operation == 'bindRequest':
                             # TODO actually do things here
-                            logger.debug(f'{peername}: Client has bound')
+                            logger.info(f'{peername}: Client has bound')
                             pass
                         elif operation == 'searchRequest':
-                            logger.debug(f'{peername}: Received {operation}')
+                            logger.info(f'{peername}: Received {operation}')
 
                             # Handle Root DSE request
                             scope = req_obj.getComponentByName('scope')
@@ -248,10 +264,31 @@ class LDAPServer(object):
                                 await send(writer, lm)
                                 continue
 
+                            _limit = req_obj.getComponentByName('sizeLimit')
+                            if _limit.isValue:
+                                limit = int(_limit)
+                                if limit == 0:
+                                    limit = None
+                            else:
+                                limit = None
+
+                            _time_limit = req_obj.getComponentByName('timeLimit')
+                            if _time_limit.isValue:
+                                time_limit = int(_time_limit)
+                                if time_limit == 0:
+                                    time_limit = None
+                            else:
+                                time_limit = None
+
                             try:
-                                async for result in backend.search(req_obj):
-                                    lm = pack(message_id, result.to_proto())  # TODO controls?
-                                    await send(writer, lm)
+                                n = 0
+                                async with timeout(time_limit):
+                                    async for result in backend.search(req_obj):
+                                        lm = pack(message_id, result.to_proto())  # TODO controls?
+                                        await send(writer, lm)
+                                        n += 1
+                                        if limit and n >= limit:
+                                            break
                                 logger.debug(f'{peername}: Search successfully completed')
                                 continue
                             except BaseObjectNotFound as e:
@@ -260,8 +297,11 @@ class LDAPServer(object):
                                 unmatched = base_dn.replace(f',{matched_dn}', '')
                                 raise NoSuchObjectError(f'Search base object was not found, found up to: {matched_dn} '
                                                         f'Could not find: {unmatched}')
+                            except asyncio.TimeoutError:
+                                raise TimeLimitExceededError(f'Requested time limit of {time_limit} seconds was '
+                                                             'exceeded during search request')
                         elif operation == 'compareRequest':
-                            logger.debug(f'{peername}: Received {operation}')
+                            logger.info(f'{peername}: Received {operation}')
                             cmp = await backend.compare(req_obj)
 
                             if cmp is True:
@@ -280,11 +320,11 @@ class LDAPServer(object):
                         else:
                             # This handles all the normal methods
                             backend_method = getattr(backend, _method_name(root_op))
-                            logger.debug(f'{peername}: Received {operation}')
+                            logger.info(f'{peername}: Received {operation}')
                             await backend_method(req_obj)
                     except ResultCodeError as e:
-                        logger.debug(f'{peername}: {operation} failed with result {e.RESULT_CODE}: {e}\n'
-                                     f'{traceback.format_exc()}')
+                        logger.info(f'{peername}: {operation} failed with result {e.RESULT_CODE}: {e}\n'
+                                    f'{traceback.format_exc()}')
                         await send_ldap_result_message(writer, message_id, res_name, res_cls, e.RESULT_CODE, matched_dn,
                                                        str(e))
                     except LDAPError as e:
@@ -303,7 +343,8 @@ class LDAPServer(object):
             except SubstrateUnderrunError:
                 continue
             except (PyAsn1Error, DisconnectionProtocolError) as e:
-                logger.error(f'{peername}: Got fatal disconnect error {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
+                logger.error(f'{peername}: Caught fatal disconnect error {e.__class__.__name__}: {e}\n'
+                             f'{traceback.format_exc()}')
                 xr = ldap_result(rfc4511.ExtendedResponse, 'protocolError', message=str(e))
                 xr.setComponentByName('responseName', LDAPServer.OID_NOTICE_OF_DISCONNECTION)
                 op = protocol_op('extendedResp', xr)
