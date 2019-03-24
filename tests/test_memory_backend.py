@@ -131,12 +131,13 @@ class TestMemoryBackend(unittest.TestCase):
                 s = await asynclist(mb.search(make_search_request(dn, Scope.SUB)))
                 self.assertEqual(len(s), expected_count)
 
-            with self.subTest('subtree with limit'):
-                limit = 17
-                rdn0 = random.choice(rdns)
-                dn = ','.join((rdn0, suffix))
-                s = await asynclist(mb.search(make_search_request(dn, Scope.SUB, limit=limit)))
-                self.assertEqual(len(s), limit + 1)  # include search done
+            # TODO limits now only handled by LDAPServer not backends
+            #with self.subTest('subtree with limit'):
+            #    limit = 17
+            #    rdn0 = random.choice(rdns)
+            #    dn = ','.join((rdn0, suffix))
+            #    s = await asynclist(mb.search(make_search_request(dn, Scope.SUB, limit=limit)))
+            #    self.assertEqual(len(s), limit + 1)  # include search done
 
             expected_objects = 10
             expected_count = expected_objects + 1  # include search done

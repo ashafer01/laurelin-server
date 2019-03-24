@@ -3,12 +3,13 @@ In-memory ephemeral LDAP backend store
 """
 import logging
 from laurelin.ldap.constants import Scope, DerefAliases
-from laurelin.ldap.protoutils import split_unescaped, seq_to_list
+from laurelin.ldap.protoutils import split_unescaped
 
 from .ldapobject import LDAPObject
 from .. import search_results
 from ..backend import AbstractBackend
 from ..exceptions import *
+from ..utils import component, bool_component, list_component, require_component
 
 logger = logging.getLogger('laurelin.server.memory_backend')
 
@@ -19,31 +20,20 @@ class MemoryBackend(AbstractBackend):
         self._dit = LDAPObject(suffix)
 
     async def search(self, search_request):
-        base_dn = str(search_request.getComponentByName('baseObject'))
-        scope = search_request.getComponentByName('scope')
+        base_dn = str(require_component(search_request, 'baseObject'))
+        scope = require_component(search_request, 'scope')
 
         if base_dn == '' and scope == Scope.BASE:
             raise InternalError('Root DSE search request was dispatched to backend')
 
-        fil = search_request.getComponentByName('filter') or None
-
-        _attrs = search_request.getComponentByName('attributes')
-        if _attrs.isValue:
-            attrs = seq_to_list(_attrs)
-        else:
-            attrs = None
-
-        _types_only = search_request.getComponentByName('typesOnly')
-        if _types_only.isValue:
-            types_only = bool(_types_only)
-        else:
-            types_only = False
-
-        deref_aliases = search_request.getComponentByName('derefAliases') or None
+        fil = component(search_request, 'filter')
+        attrs = list_component(search_request, 'attributes')
+        types_only = bool_component(search_request, 'typesOnly', default=False)
+        deref_aliases = component(search_request, 'derefAliases')
 
         base_obj = self._dit.get(base_dn)
         if deref_aliases == DerefAliases.BASE or deref_aliases == DerefAliases.ALWAYS:
-            base_obj = await self.deref_object(base_obj)
+            base_obj = self.deref_object(base_obj)
         if scope == Scope.BASE:
             if base_obj.matches_filter(fil):
                 yield base_obj.to_result(attrs, types_only)
@@ -58,11 +48,11 @@ class MemoryBackend(AbstractBackend):
 
         async for item in result_gen:
             if deref_aliases == DerefAliases.SEARCH or deref_aliases == DerefAliases.ALWAYS:
-                item = await self.deref_object(item)
+                item = self.deref_object(item)
             yield item.to_result(attrs, types_only)
         yield search_results.Done(base_obj.dn_str)
 
-    async def deref_object(self, obj: LDAPObject):
+    def deref_object(self, obj: LDAPObject):
         while obj.attrs.get_attr('objectClass') == 'alias':
             obj = self._dit.get(obj.attrs['aliasedObjectName'][0])
         return obj

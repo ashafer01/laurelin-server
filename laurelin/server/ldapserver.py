@@ -16,6 +16,7 @@ from .dn import parse_dn
 from .exceptions import *
 from .backend import AbstractBackend
 from .config import Config
+from .utils import require_component, int_component
 
 logger = logging.getLogger('laurelin.server')
 
@@ -66,9 +67,6 @@ _dn_components = {
 
 _request_suffixes = ('Request', 'Req')
 _root_op_names = {'bind', 'unbind', 'search', 'add', 'modify', 'modDN', 'abandon', 'extended', 'compare'}
-
-# TODO get rid of this object!
-_unimplemented_ops = {'extended'}
 
 _request_str = 'Request'
 
@@ -204,9 +202,9 @@ class LDAPServer(object):
                 buffer += data
                 while len(buffer) > 0:  # { decoded request object loop
                     request, buffer = ber_decode(buffer, asn1Spec=rfc4511.LDAPMessage())
-                    message_id = int(request.getComponentByName('messageID'))
+                    message_id = int(require_component(request, 'messageID'))
 
-                    _op = request.getComponentByName('protocolOp')
+                    _op = require_component(request, 'protocolOp')
                     operation = _op.getName()
                     req_obj = _op.getComponent()
                     root_op = _root_op(operation)
@@ -237,16 +235,13 @@ class LDAPServer(object):
 
                     try:
                         res_cls = _rfc4511_response_class(root_op)
-                        matched_dn = str(req_obj.getComponentByName(_dn_components.get(operation, 'entry')))
+                        matched_dn = str(require_component(req_obj, _dn_components.get(operation, 'entry')))
 
                         backend = self._backend(matched_dn)
 
                         if not _is_request(operation):
                             raise DisconnectionProtocolError(f'Operation {operation} does not appear to be a standard '
                                                              'LDAP request')
-                        elif root_op in _unimplemented_ops:
-                            # TODO eliminate this condition!
-                            raise LDAPError(f'{_uc_first(root_op)} operations not yet implemented')
                         elif operation == 'bindRequest':
                             # TODO actually do things here
                             logger.info(f'{peername}: Client has bound')
@@ -255,7 +250,7 @@ class LDAPServer(object):
                             logger.info(f'{peername}: Received {operation}')
 
                             # Handle Root DSE request
-                            scope = req_obj.getComponentByName('scope')
+                            scope = require_component(req_obj, 'scope')
                             if matched_dn == '' and scope == Scope.BASE:
                                 logger.debug(f'{peername}: Got root DSE request')
                                 lm = pack(message_id, self.root_dse.to_proto())
@@ -264,21 +259,8 @@ class LDAPServer(object):
                                 await send(writer, lm)
                                 continue
 
-                            _limit = req_obj.getComponentByName('sizeLimit')
-                            if _limit.isValue:
-                                limit = int(_limit)
-                                if limit == 0:
-                                    limit = None
-                            else:
-                                limit = None
-
-                            _time_limit = req_obj.getComponentByName('timeLimit')
-                            if _time_limit.isValue:
-                                time_limit = int(_time_limit)
-                                if time_limit == 0:
-                                    time_limit = None
-                            else:
-                                time_limit = None
+                            limit = int_component(req_obj, 'sizeLimit', default_value=0)
+                            time_limit = int_component(req_obj, 'timeLimit', default_value=0)
 
                             try:
                                 n = 0
@@ -317,6 +299,10 @@ class LDAPServer(object):
 
                             await send(writer, lm)
                             continue
+                        elif operation == 'extendedReq':
+                            # TODO extended requests
+                            logger.info(f'{peername}: Received {operation}')
+                            raise LDAPError(f'Extended operations not yet implemented')
                         else:
                             # This handles all the normal methods
                             backend_method = getattr(backend, _method_name(root_op))
