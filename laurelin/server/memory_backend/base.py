@@ -2,7 +2,7 @@
 In-memory ephemeral LDAP backend store
 """
 import logging
-from laurelin.ldap.constants import Scope
+from laurelin.ldap.constants import Scope, DerefAliases
 from laurelin.ldap.protoutils import split_unescaped, seq_to_list
 
 from .ldapobject import LDAPObject
@@ -39,10 +39,11 @@ class MemoryBackend(AbstractBackend):
         else:
             types_only = False
 
-        # TODO implement all search parameters
-        #search_request.getComponentByName('derefAliases')
+        deref_aliases = search_request.getComponentByName('derefAliases') or None
 
         base_obj = self._dit.get(base_dn)
+        if deref_aliases == DerefAliases.BASE or deref_aliases == DerefAliases.ALWAYS:
+            base_obj = await self.deref_object(base_obj)
         if scope == Scope.BASE:
             if base_obj.matches_filter(fil):
                 yield base_obj.to_result(attrs, types_only)
@@ -56,8 +57,15 @@ class MemoryBackend(AbstractBackend):
             raise ValueError('scope')
 
         async for item in result_gen:
+            if deref_aliases == DerefAliases.SEARCH or deref_aliases == DerefAliases.ALWAYS:
+                item = await self.deref_object(item)
             yield item.to_result(attrs, types_only)
         yield search_results.Done(base_obj.dn_str)
+
+    async def deref_object(self, obj: LDAPObject):
+        while obj.attrs.get_attr('objectClass') == 'alias':
+            obj = self._dit.get(obj.attrs['aliasedObjectName'][0])
+        return obj
 
     async def compare(self, compare_request):
         dn = str(compare_request.getComponentByName('entry'))
