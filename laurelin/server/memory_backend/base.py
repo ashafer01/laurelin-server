@@ -8,8 +8,9 @@ from laurelin.ldap.protoutils import split_unescaped
 from .ldapobject import LDAPObject
 from .. import search_results
 from ..backend import AbstractBackend
+from ..dn import parse_rdn
 from ..exceptions import *
-from ..utils import component, bool_component, list_component, require_component
+from ..utils import raw_component, bool_component, list_component, require_component
 
 logger = logging.getLogger('laurelin.server.memory_backend')
 
@@ -26,10 +27,10 @@ class MemoryBackend(AbstractBackend):
         if base_dn == '' and scope == Scope.BASE:
             raise InternalError('Root DSE search request was dispatched to backend')
 
-        fil = component(search_request, 'filter')
+        fil = raw_component(search_request, 'filter')
         attrs = list_component(search_request, 'attributes')
         types_only = bool_component(search_request, 'typesOnly', default=False)
-        deref_aliases = component(search_request, 'derefAliases')
+        deref_aliases = raw_component(search_request, 'derefAliases')
 
         base_obj = self._dit.get(base_dn)
         if deref_aliases == DerefAliases.BASE or deref_aliases == DerefAliases.ALWAYS:
@@ -58,36 +59,36 @@ class MemoryBackend(AbstractBackend):
         return obj
 
     async def compare(self, compare_request):
-        dn = str(compare_request.getComponentByName('entry'))
-        ava = compare_request.getComponentByName('ava')
-        attr_type = str(ava.getComponentByName('attributeDesc'))
-        attr_value = str(ava.getComponentByName('assertionValue'))
+        dn = require_component(compare_request, 'entry', str)
+        ava = require_component(compare_request, 'ava')
+        attr_type = require_component(ava, 'attributeDesc', str)
+        attr_value = require_component(ava, 'assertionValue', str)  # TODO binary support
 
         obj = self._dit.get(dn)
         return attr_type in obj.attrs and attr_value in obj.attrs[attr_type]
 
     async def modify(self, modify_request):
-        dn = str(modify_request.getComponentByName('object'))
-        changes = modify_request.getComponentByName('changes')
+        dn = require_component(modify_request, 'object', str)
+        changes = require_component(modify_request, 'changes')
         obj = self._dit.get(dn)
         obj.modify(changes)
 
     def _get_rdn_and_parent(self, dn):
         rdn, parent_dn = split_unescaped(dn, ',', 1)
         parent_obj = self._dit.get(parent_dn)
-        return rdn, parent_obj
+        return parse_rdn(rdn), parent_obj
 
     async def add(self, add_request):
-        dn = str(add_request.getComponentByName('entry'))
-        al = add_request.getComponentByName('attributes')
+        dn = require_component(add_request, 'entry', str)
+        al = require_component(add_request, 'attributes')
         attrs = {}
         for i in range(len(al)):
-            attr = al.getComponentByPosition(i)
-            attr_type = str(attr.getComponentByName('type'))
+            attr = require_component(al, i)
+            attr_type = require_component(attr, 'type', str)
             attr_vals = []
-            vals = attr.getComponentByName('vals')
+            vals = require_component(attr, 'vals')
             for j in range(len(vals)):
-                attr_vals.append(str(vals.getComponentByPosition(j)))
+                attr_vals.append(require_component(vals, j, str))
             attrs[attr_type] = attr_vals
 
         rdn, parent_obj = self._get_rdn_and_parent(dn)
@@ -99,9 +100,9 @@ class MemoryBackend(AbstractBackend):
         parent_obj.delete_child(rdn)
 
     async def mod_dn(self, mod_dn_request):
-        dn = str(mod_dn_request.getComponentByName('entry'))
-        new_rdn = str(mod_dn_request.getComponentByName('newrdn'))
-        del_old_rdn_attr = bool(mod_dn_request.getComponentByName('deleteoldrdn'))
+        dn = require_component(mod_dn_request, 'entry', str)
+        new_rdn = require_component(mod_dn_request, 'newrdn', str)
+        del_old_rdn_attr = require_component(mod_dn_request, 'deleteoldrdn', bool)
         _new_parent = mod_dn_request.getComponentByName('newSuperior')
 
         rdn, parent_obj = self._get_rdn_and_parent(dn)

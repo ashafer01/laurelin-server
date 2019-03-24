@@ -2,7 +2,7 @@ from laurelin.ldap.protoutils import seq_to_list
 from pyasn1.error import PyAsn1Error
 
 
-def _get_component(asn1_obj, component_ident):
+def get_component(asn1_obj, component_ident):
     if isinstance(component_ident, str):
         return asn1_obj.getComponentByName(component_ident)
     elif isinstance(component_ident, int):
@@ -11,24 +11,34 @@ def _get_component(asn1_obj, component_ident):
         raise TypeError('component_ident must be string or int')
 
 
-def _component_to_type(asn1_obj, component_ident, default, val_type):
-    _val = _get_component(asn1_obj, component_ident)
+def _cast_value(val, val_type):
+    if val_type is None:
+        return val
+    else:
+        return val_type(val)
+
+
+def optional_component(asn1_obj, component_ident, default=None, val_type=None):
+    try:
+        _val = get_component(asn1_obj, component_ident)
+    except PyAsn1Error:
+        return default
     if _val.isValue:
-        return val_type(_val)
+        return _cast_value(_val, val_type)
     else:
         return default
 
 
 def str_component(asn1_obj, component_ident, default=None):
-    return _component_to_type(asn1_obj, component_ident, default, str)
+    return optional_component(asn1_obj, component_ident, default, str)
 
 
 def bool_component(asn1_obj, component_ident, default=None):
-    return _component_to_type(asn1_obj, component_ident, default, bool)
+    return optional_component(asn1_obj, component_ident, default, bool)
 
 
 def int_component(asn1_obj, component_ident, default=None, default_value=0):
-    val = _component_to_type(asn1_obj, component_ident, default, int)
+    val = optional_component(asn1_obj, component_ident, default, int)
     if val == default_value:
         return default
     else:
@@ -36,19 +46,16 @@ def int_component(asn1_obj, component_ident, default=None, default_value=0):
 
 
 def list_component(asn1_obj, component_ident, default=None):
-    return _component_to_type(asn1_obj, component_ident, default, seq_to_list)
+    return optional_component(asn1_obj, component_ident, default, seq_to_list)
 
 
-def component(asn1_obj, component_ident, default=None):
-    _val = _get_component(asn1_obj, component_ident)
-    if _val.isValue:
-        return _val
+def raw_component(asn1_obj, component_ident, default=None):
+    return optional_component(asn1_obj, component_ident, default)
+
+
+def require_component(asn1_obj, component_ident, val_type=None):
+    val = get_component(asn1_obj, component_ident)
+    if val.isValue:
+        return _cast_value(val, val_type)
     else:
-        return default
-
-
-def require_component(asn1_obj, component_ident):
-    val = _get_component(asn1_obj, component_ident)
-    if not val.isValue:
         raise PyAsn1Error(f'Required component {component_ident} is not set to a value')
-    return val

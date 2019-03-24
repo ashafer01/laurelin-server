@@ -202,7 +202,7 @@ class LDAPServer(object):
                 buffer += data
                 while len(buffer) > 0:  # { decoded request object loop
                     request, buffer = ber_decode(buffer, asn1Spec=rfc4511.LDAPMessage())
-                    message_id = int(require_component(request, 'messageID'))
+                    message_id = require_component(request, 'messageID', int)
 
                     _op = require_component(request, 'protocolOp')
                     operation = _op.getName()
@@ -235,7 +235,7 @@ class LDAPServer(object):
 
                     try:
                         res_cls = _rfc4511_response_class(root_op)
-                        matched_dn = str(require_component(req_obj, _dn_components.get(operation, 'entry')))
+                        matched_dn = require_component(req_obj, _dn_components.get(operation, 'entry'), str)
 
                         backend = self._backend(matched_dn)
 

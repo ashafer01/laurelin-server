@@ -18,7 +18,14 @@ class RDN(frozenset):
             return self._str
 
     def __repr__(self):
-        return f'RDN({repr(str(self))})'
+        try:
+            self._repr
+        except AttributeError:
+            self._repr = None
+        finally:
+            if self._repr is None:
+                self._repr = 'RDN([' + ', '.join([f'({repr(a)}, {repr(v)})' for a, v in self]) + '])'
+            return self._repr
 
 
 class DN(tuple):
@@ -31,6 +38,7 @@ class DN(tuple):
     def __init__(self, original=None, rdns: Iterable = None):
         self._original = original
         self._stringified = None
+        self._repr = None
 
     def _stringify(self):
         if self._stringified is None:
@@ -44,7 +52,10 @@ class DN(tuple):
             return self._stringify()
 
     def __repr__(self):
-        return f'DN({repr(str(self))})'
+        if self._repr is None:
+            rdns = ', '.join([repr(rdn) for rdn in self])
+            self._repr = f'DN(original={repr(self._original)}, rdns=[{rdns}])'
+        return self._repr
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -64,14 +75,14 @@ def parse_rdn(rdn):
         try:
             attr, val = split_unescaped(ava, '=')
         except ValueError:
-            raise InvalidDNError('Invalid RDN - no equals sign or equals sign needs escaping')
+            raise InvalidDNError(f'Invalid RDN AVA {ava} - no equals sign or equals sign needs escaping')
         try:
             val = get_schema().get_attribute_type(attr).prepare_value(val)
         except UndefinedSchemaElementError:
-            raise InvalidDNError(f'Invalid RDN - attribute type {attr} does not exist')
+            raise InvalidDNError(f'Invalid RDN AVA {ava} - attribute type {attr} does not exist')
         except NeededRuleError:
-            raise InvalidDNError(f'Invalid RDN - attribute type {attr} cannot be used for an RDN attribute because a '
-                                 f'matching rule is not available to compare values')
+            raise InvalidDNError(f'Invalid RDN AVA {ava} - attribute type {attr} cannot be used for an RDN attribute '
+                                 'because a matching rule is not available to compare values')
         tpl_avas.append((attr.lower(), val))
     return RDN(tpl_avas)
 
