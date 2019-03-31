@@ -10,7 +10,7 @@ from .. import search_results
 from ..backend import AbstractBackend
 from ..dn import parse_rdn
 from ..exceptions import *
-from ..utils import raw_component, bool_component, list_component, require_component
+from ..utils import optional_component, bool_component, list_component, require_component
 
 logger = logging.getLogger('laurelin.server.memory_backend')
 
@@ -21,16 +21,16 @@ class MemoryBackend(AbstractBackend):
         self._dit = LDAPObject(suffix)
 
     async def search(self, search_request):
-        base_dn = str(require_component(search_request, 'baseObject'))
+        base_dn = require_component(search_request, 'baseObject', str)
         scope = require_component(search_request, 'scope')
 
         if base_dn == '' and scope == Scope.BASE:
             raise InternalError('Root DSE search request was dispatched to backend')
 
-        fil = raw_component(search_request, 'filter')
+        fil = optional_component(search_request, 'filter')
         attrs = list_component(search_request, 'attributes')
         types_only = bool_component(search_request, 'typesOnly', default=False)
-        deref_aliases = raw_component(search_request, 'derefAliases')
+        deref_aliases = optional_component(search_request, 'derefAliases')
 
         base_obj = self._dit.get(base_dn)
         if deref_aliases == DerefAliases.BASE or deref_aliases == DerefAliases.ALWAYS:
@@ -47,16 +47,23 @@ class MemoryBackend(AbstractBackend):
         else:
             raise ValueError('scope')
 
+        deref_search = (deref_aliases == DerefAliases.SEARCH or deref_aliases == DerefAliases.ALWAYS)
         async for item in result_gen:
-            if deref_aliases == DerefAliases.SEARCH or deref_aliases == DerefAliases.ALWAYS:
+            if deref_search:
                 item = self.deref_object(item)
             yield item.to_result(attrs, types_only)
         yield search_results.Done(base_obj.dn_str)
 
     def deref_object(self, obj: LDAPObject):
-        while obj.attrs.get_attr('objectClass') == 'alias':
-            obj = self._dit.get(obj.attrs['aliasedObjectName'][0])
-        return obj
+        try:
+            while obj.attrs.get_attr('objectClass') == 'alias':
+                alias_dn = obj.attrs['aliasedObjectName'][0]
+                obj = self._dit.get(alias_dn)
+            return obj
+        except (KeyError, IndexError):
+            raise AliasError(f'Alias object {obj.dn_str} is missing an aliasedObjectName attribute')
+        except ObjectNotFound:
+            raise AliasError(f'Aliased object {alias_dn} does not exist')
 
     async def compare(self, compare_request):
         dn = require_component(compare_request, 'entry', str)

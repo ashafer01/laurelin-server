@@ -46,7 +46,7 @@ class SyntaxParseError(LDAPError):
     pass
 
 
-class BaseObjectNotFound(LDAPError):
+class ObjectNotFound(LDAPError):
     pass
 
 
@@ -88,3 +88,7 @@ class EntryAlreadyExistsError(ResultCodeError):
 
 class TimeLimitExceededError(ResultCodeError):
     RESULT_CODE = 'timeLimitExceeded'
+
+
+class AliasError(ResultCodeError):
+    RESULT_CODE = 'aliasProblem'

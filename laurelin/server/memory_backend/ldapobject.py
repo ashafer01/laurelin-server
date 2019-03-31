@@ -158,7 +158,7 @@ class LDAPObject(object):
             next_obj = self.get_child(dn[-1])
             return next_obj.get(dn)
         else:
-            raise BaseObjectNotFound('No such object', self.dn_str)
+            raise ObjectNotFound('No such object', self.dn_str)
 
     def mod_rdn(self, rdn, new_rdn, del_old_rdn_attr):
         if rdn == new_rdn:

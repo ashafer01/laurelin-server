@@ -230,9 +230,10 @@ class LDAPServer(object):
                         #
                         # Unfortunately RFC4511 specifies that interrupting result entries is the one thing we MUST
                         # do, but it also says clients MUST NOT care if the abandon worked, so ... ?
-                        logger.warning('Received abandon request - ignoring')
+                        logger.warning(f'{peername}: Received abandon request - ignoring')
                         continue
 
+                    # Requests with responses
                     try:
                         res_cls = _rfc4511_response_class(root_op)
                         matched_dn = require_component(req_obj, _dn_components.get(operation, 'entry'), str)
@@ -273,7 +274,7 @@ class LDAPServer(object):
                                             break
                                 logger.debug(f'{peername}: Search successfully completed')
                                 continue
-                            except BaseObjectNotFound as e:
+                            except ObjectNotFound as e:
                                 base_dn = matched_dn
                                 matched_dn = e.args[1] or '<none>'
                                 unmatched = base_dn.replace(f',{matched_dn}', '')

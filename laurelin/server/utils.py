@@ -49,10 +49,6 @@ def list_component(asn1_obj, component_ident, default=None):
     return optional_component(asn1_obj, component_ident, default, seq_to_list)
 
 
-def raw_component(asn1_obj, component_ident, default=None):
-    return optional_component(asn1_obj, component_ident, default)
-
-
 def require_component(asn1_obj, component_ident, val_type=None):
     val = get_component(asn1_obj, component_ident)
     if val.isValue:

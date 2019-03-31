@@ -4,13 +4,8 @@ from .attrvaluelist import AttrValueList
 
 
 class AttrsDict(CaseIgnoreDict):
-    def get_attr(self, attr):
-        """Get an attribute's values, or an empty list if the attribute is not defined
-
-        :param str attr: The name of the attribute
-        :return: A list of values
-        :rtype: AttrValueList
-        """
+    def get_attr(self, attr: str) -> AttrValueList:
+        """Get an attribute's values, or an empty list if the attribute is not defined"""
         return self.get(attr, AttrValueList(attr))
 
     def deepcopy(self, attrs=None, types_only=False):
