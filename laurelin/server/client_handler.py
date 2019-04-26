@@ -86,12 +86,9 @@ class ClientHandler(object):
         self.dit = dit
         self.log = ClientLogger(writer.get_extra_info('peername'))
 
-        # sorted list of DIT suffixes - most RDNs first, otherwise order does not matter
-        self.suffixes = list(self.dit.keys())
-        self.suffixes.sort(key=lambda s: len(s), reverse=True)
-
         # Right now this is going to be the same for every client so maybe do once in LaurelinServer/LDAPServer
         #  BUT depending on other things it may be different for some later, so TBD
+
         nc = []
         dnc = []
         for dn, backend in self.dit.items():
@@ -107,6 +104,10 @@ class ClientHandler(object):
 
         if not nc:
             raise ConfigError('No DIT nodes configured')
+
+        # sorted list of DIT suffixes - most RDNs first, otherwise order does not matter
+        self.suffixes = list(self.dit.keys())
+        self.suffixes.sort(key=lambda s: len(s), reverse=True)
 
         self.root_dse = search_results.Entry('', {
             'namingContexts': nc,
@@ -128,8 +129,8 @@ class ClientHandler(object):
         self.writer.write(ber_encode(lm))
         await self.writer.drain()
 
-    async def send_ldap_result(self, req: Request, result_code, matched_dn='', message='', controls=None):
-        res = ldap_result(req.res_cls, result_code, matched_dn, message)
+    async def send_ldap_result(self, req: Request, result_code, message='', controls=None):
+        res = ldap_result(req.res_cls, result_code, req.matched_dn, message)
         po = protocol_op(req.res_name, res)
         lm = pack(req.id, po, controls)
         await self.send(lm)
@@ -183,7 +184,7 @@ class ClientHandler(object):
             await getattr(self, '_handle_' + req.root_op, self._handle_generic)(req)
         except ResultCodeError as e:
             self.log.info(f'{req.operation} {req.id} failed with result {e.RESULT_CODE}: {e}\n{traceback.format_exc()}')
-            await self.send_ldap_result(req, e.RESULT_CODE, req.matched_dn, str(e))
+            await self.send_ldap_result(req, e.RESULT_CODE, str(e))
         except LDAPError as e:
             self.log.error(f'Sending error for {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
             await self.send_ldap_result(req, 'other', message=str(e))
@@ -191,7 +192,7 @@ class ClientHandler(object):
             raise
         except (Exception, InternalError) as e:
             self.log.error(f'{req.operation} {req.id} Got {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
-            await self.send_ldap_result(req, 'other', req.matched_dn, 'Internal server error')
+            await self.send_ldap_result(req, 'other', 'Internal server error')
 
     async def _handle_generic(self, req):
         # This handles all the normal methods
@@ -199,11 +200,11 @@ class ClientHandler(object):
         self.log.info(f'Received {req.operation}')
         await backend_method(req.asn1_obj)
         self.log.debug(f'{req.operation} {req.id} successful')
-        await self.send_ldap_result(req, 'success', req.matched_dn)
+        await self.send_ldap_result(req, 'success')
 
     async def _handle_bind(self, req):
         # TODO bind for real
-        await self.send_ldap_result(req, 'success', req.matched_dn)
+        await self.send_ldap_result(req, 'success')
 
     async def _handle_search(self, req):
         # Handle Root DSE request
@@ -250,7 +251,7 @@ class ClientHandler(object):
         else:
             raise InternalError('Backend returned non-boolean for compare')
 
-        cr = ldap_result(rfc4511.CompareResponse, result, req.matched_dn, 'Compare successful')
+        cr = ldap_result(rfc4511.CompareResponse, result, 'Compare successful')
         op = protocol_op('compareResponse', cr)
         lm = pack(req.id, op)  # TODO controls?
 

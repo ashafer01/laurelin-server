@@ -22,7 +22,6 @@ class LDAPServer(object):
         self.uri = uri
         self.conf = conf
         self.dit = dit
-
         self.server = None
 
     async def run(self):
@@ -37,7 +36,7 @@ class LDAPServer(object):
         elif scheme == 'ldapi':
             self.server = await asyncio.start_unix_server(self.client, path=netloc)
         else:
-            raise ConfigError(f'Unsupported scheme {scheme}')
+            raise ConfigError(f'Unsupported URI scheme {scheme}')
         async with self.server:
             await self.server.serve_forever()
 
