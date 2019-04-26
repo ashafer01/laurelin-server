@@ -16,8 +16,6 @@ from .exceptions import *
 from .request import Request
 from .utils import require_component, int_component
 
-_logger = logging.getLogger('laurelin.server.client_handler')
-
 
 def pack(message_id, op, controls=None):
     lm = rfc4511.LDAPMessage()
@@ -67,13 +65,14 @@ def _is_request(operation):
 
 class ClientLogger(object):
     def __init__(self, peername):
-        self.peername = peername
+        self._peername = peername
+        self._logger = logging.getLogger('laurelin.server.client_handler')
 
     def __getattr__(self, item):
-        log_func = getattr(_logger, item)
+        log_func = getattr(self._logger, item)
 
         def log(msg):
-            return log_func(f'{self.peername}: {msg}')
+            return log_func(f'{self._peername}: {msg}')
 
         return log
 
@@ -185,7 +184,6 @@ class ClientHandler(object):
         except ResultCodeError as e:
             self.log.info(f'{req.operation} {req.id} failed with result {e.RESULT_CODE}: {e}\n{traceback.format_exc()}')
             await self.send_ldap_result(req, e.RESULT_CODE, req.matched_dn, str(e))
-
         except LDAPError as e:
             self.log.error(f'Sending error for {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
             await self.send_ldap_result(req, 'other', message=str(e))
