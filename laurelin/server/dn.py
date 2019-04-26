@@ -9,22 +9,16 @@ from laurelin.ldap.protoutils import split_unescaped
 class RDN(frozenset):
     def __str__(self):
         try:
-            self._str
+            return self._str
         except AttributeError:
-            self._str = None
-        finally:
-            if self._str is None:
-                self._str = '+'.join(['='.join(ava) for ava in self])
+            self._str = '+'.join(['='.join(ava) for ava in self])
             return self._str
 
     def __repr__(self):
         try:
-            self._repr
+            return self._repr
         except AttributeError:
-            self._repr = None
-        finally:
-            if self._repr is None:
-                self._repr = 'RDN([' + ', '.join([f'({repr(a)}, {repr(v)})' for a, v in self]) + '])'
+            self._repr = 'RDN([' + ', '.join([f'({repr(a)}, {repr(v)})' for a, v in self]) + '])'
             return self._repr
 
 

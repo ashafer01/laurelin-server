@@ -57,13 +57,13 @@ class MemoryBackend(AbstractBackend):
     def deref_object(self, obj: LDAPObject):
         try:
             while obj.attrs.get_attr('objectClass') == 'alias':
-                alias_dn = obj.attrs['aliasedObjectName'][0]
-                obj = self._dit.get(alias_dn)
+                aliased_dn = obj.attrs['aliasedObjectName'][0]
+                obj = self._dit.get(aliased_dn)
             return obj
         except (KeyError, IndexError):
             raise AliasError(f'Alias object {obj.dn_str} is missing an aliasedObjectName attribute')
         except ObjectNotFound:
-            raise AliasError(f'Aliased object {alias_dn} does not exist')
+            raise AliasError(f'Aliased object {aliased_dn} does not exist')
 
     async def compare(self, compare_request):
         dn = require_component(compare_request, 'entry', str)
