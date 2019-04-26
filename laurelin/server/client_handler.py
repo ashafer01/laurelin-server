@@ -18,6 +18,7 @@ from .utils import require_component, int_component
 
 
 def pack(message_id, op, controls=None):
+    """Instantiate rfc4511.LDAPMessage using existing rfc4511.ProtocolOp and optional rfc4511.Controls"""
     lm = rfc4511.LDAPMessage()
     lm.setComponentByName('messageID', rfc4511.MessageID(int(message_id)))
     lm.setComponentByName('protocolOp', op)
@@ -27,6 +28,7 @@ def pack(message_id, op, controls=None):
 
 
 def ldap_result(cls, result_code, matched_dn='', message=''):
+    """Instantiate an rfc4511 class which uses COMPONENTS OF LDAPResult"""
     if not cls:
         raise InternalError('ldap_result cls is not set')
     res = cls()
@@ -36,7 +38,8 @@ def ldap_result(cls, result_code, matched_dn='', message=''):
     return res
 
 
-def protocol_op(op_name, obj):
+def protocol_op(op_name: str, obj):
+    """Instantiate rfc4511.ProtocolOp using the string component name and matching rfc4511 object"""
     if not op_name:
         raise InternalError('op_name is not set')
     op = rfc4511.ProtocolOp()
@@ -44,26 +47,25 @@ def protocol_op(op_name, obj):
     return op
 
 
-def _method_name(root_op):
+def _method_name(root_op: str):
+    """Convert a root operation string to the name of a method on AbstractBackend"""
     return root_op.replace('DN', '_dn')
 
 
-_root_op_names = {'bind', 'unbind', 'search', 'add', 'modify', 'modDN', 'abandon', 'extended', 'compare'}
-_request_str = 'Request'
-
-
-def _is_request(operation):
+def _is_request(operation: str):
+    """Check that `operation` names a request protocol operation"""
+    # assumes that `operation` was successfully retrieved from a rfc4511.ProtocolOp
     if operation == 'extendedReq':
         return True
-    if operation.endswith(_request_str):
-        root_op = operation[:-len(_request_str)]
-        for prefix in _root_op_names:
-            if root_op == prefix:
-                return True
-    return False
+    elif operation.endswith('Request'):
+        return True
+    else:
+        return False
 
 
 class ClientLogger(object):
+    """Proxy logger that prefixes log messages with a client identifier"""
+
     def __init__(self, peername):
         self._peername = peername
         self._logger = logging.getLogger('laurelin.server.client_handler')
@@ -117,6 +119,7 @@ class ClientHandler(object):
         })
 
     def _backend(self, dn) -> (AbstractBackend, None):
+        """Obtain the backend for a given DN"""
         if dn == '':
             return
         dn = parse_dn(dn)
@@ -125,17 +128,21 @@ class ClientHandler(object):
                 return self.dit[suffix]
         raise NoSuchObjectError(f'Could not find a backend to handle the DN {dn}')
 
-    async def send(self, lm):
+    async def send(self, lm: rfc4511.LDAPMessage):
+        """Encode and send an LDAP message"""
         self.writer.write(ber_encode(lm))
         await self.writer.drain()
 
     async def send_ldap_result(self, req: Request, result_code, message='', controls=None):
+        """Prepare and send an LDAP result message appropriate to the given Request"""
         res = ldap_result(req.res_cls, result_code, req.matched_dn, message)
         po = protocol_op(req.res_name, res)
         lm = pack(req.id, po, controls)
         await self.send(lm)
 
     async def run(self):
+        """Handle the client's requests forever"""
+
         self.log.debug('Started new client')
         buffer = b''
         while True:
@@ -180,7 +187,8 @@ class ClientHandler(object):
 
         try:
             req.populate_response_attrs()
-            await getattr(self, '_handle_' + req.root_op, self._handle_generic)(req)
+            handler_method_name = '_handle_' + req.root_op
+            await getattr(self, handler_method_name, self._handle_generic)(req)
         except ResultCodeError as e:
             self.log.info(f'{req.operation} {req.id} failed with result {e.RESULT_CODE}: {e}\n{traceback.format_exc()}')
             await self.send_ldap_result(req, e.RESULT_CODE, str(e))
