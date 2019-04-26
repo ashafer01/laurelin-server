@@ -142,14 +142,14 @@ class ClientHandler(object):
             try:
                 data = await self.reader.read(self.RECV_BUFFER)
                 if not data:
-                    self.log.debug('Client has exited')
+                    self.log.info('Client has exited')
                     return
                 buffer += data
                 while len(buffer) > 0:
                     _request, buffer = ber_decode(buffer, asn1Spec=rfc4511.LDAPMessage())
                     req = Request(_request)
 
-                    self.log.debug(f'Received message_id={req.id} operation={req.operation}')
+                    self.log.info(f'Received message_id={req.id} operation={req.operation}')
 
                     if req.operation == 'unbindRequest':
                         # TODO actually unbind
@@ -175,12 +175,11 @@ class ClientHandler(object):
                 return
 
     async def _respond_to_request(self, req):
+        if not _is_request(req.operation):
+            raise DisconnectionProtocolError(f'{req.id} does not appear to contain a standard LDAP request')
+
         try:
             req.populate_response_attrs()
-
-            if not _is_request(req.operation):
-                raise DisconnectionProtocolError(f'{req.id} does not appear to contain a standard LDAP request')
-
             await getattr(self, '_handle_' + req.root_op, self._handle_generic)(req)
         except ResultCodeError as e:
             self.log.info(f'{req.operation} {req.id} failed with result {e.RESULT_CODE}: {e}\n{traceback.format_exc()}')
@@ -205,6 +204,7 @@ class ClientHandler(object):
     async def _handle_bind(self, req):
         # TODO bind for real
         await self.send_ldap_result(req, 'success')
+        self.log.info('Client has bound')
 
     async def _handle_search(self, req):
         # Handle Root DSE request
