@@ -47,9 +47,14 @@ def protocol_op(op_name: str, obj):
     return op
 
 
-def _method_name(root_op: str):
-    """Convert a root operation string to the name of a method on AbstractBackend"""
+def _backend_method_name(root_op: str):
+    """Convert a root operation string to the name of a method on an AbstractBackend"""
     return root_op.replace('DN', '_dn')
+
+
+def _handler_method_name(root_op: str):
+    """Convert a root operation string to the name of a method on ClientHandler"""
+    return '_handle_' + root_op
 
 
 def _is_request(operation: str):
@@ -187,8 +192,8 @@ class ClientHandler(object):
 
         try:
             req.populate_response_attrs()
-            handler_method_name = '_handle_' + req.root_op
-            await getattr(self, handler_method_name, self._handle_generic)(req)
+            handler_method = getattr(self, _handler_method_name(req.root_op), self._handle_generic)
+            await handler_method(req)
         except ResultCodeError as e:
             self.log.info(f'{req.operation} {req.id} failed with result {e.RESULT_CODE}: {e}\n{traceback.format_exc()}')
             await self.send_ldap_result(req, e.RESULT_CODE, str(e))
@@ -203,7 +208,7 @@ class ClientHandler(object):
 
     async def _handle_generic(self, req):
         # This handles all the normal methods
-        backend_method = getattr(self._backend(req.matched_dn), _method_name(req.root_op))
+        backend_method = getattr(self._backend(req.matched_dn), _backend_method_name(req.root_op))
         self.log.info(f'Received {req.operation}')
         await backend_method(req.asn1_obj)
         self.log.debug(f'{req.operation} {req.id} successful')
