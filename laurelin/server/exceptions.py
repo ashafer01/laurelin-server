@@ -92,3 +92,7 @@ class TimeLimitExceededError(ResultCodeError):
 
 class AliasError(ResultCodeError):
     RESULT_CODE = 'aliasProblem'
+
+
+class AuthMethodNotSupportedError(ResultCodeError):
+    RESULT_CODE = 'authMethodNotSupported'

@@ -2,17 +2,21 @@ from laurelin.ldap import rfc4511
 
 from .utils import require_component
 
-_dn_components = {
-    'searchRequest': 'baseObject',
-    'modifyRequest': 'object',
-    'bindRequest': 'name',
-}
-
 _request_suffixes = ('Request', 'Req')
 
 
-def _root_op(operation):
+def is_request(operation: str):
+    """Check that `operation` names a request protocol operation"""
+    # assumes that `operation` was successfully retrieved from a rfc4511.ProtocolOp
+    for suffix in _request_suffixes:
+        if operation.endswith(suffix):
+            return True
+    return False
+
+
+def _root_op(operation: str):
     """Convert a full rfc4511.ProtocolOp request name to the root operation; e.g. searchRequest -> search"""
+    # assumes that `operation` was successfully retrieved from a rfc4511.ProtocolOp
     for suffix in _request_suffixes:
         operation = operation.replace(suffix, '')
     return operation
@@ -24,7 +28,7 @@ _response_suffixes = {
 }
 
 
-def _response_name(root_op):
+def _response_name(root_op: str):
     """Convert the result of _root_op() to the associated response operation name for the request"""
     root_op += _response_suffixes.get(root_op, 'Response')
     return root_op
@@ -35,7 +39,7 @@ def _uc_first(string):
     return string[0].upper() + string[1:]
 
 
-def _rfc4511_response_class(root_op):
+def _rfc4511_response_class(root_op: str):
     """Obtain the rfc4511 class to be used to respond to the given _root_op() result"""
     if root_op == 'search':
         return rfc4511.SearchResultDone
@@ -44,6 +48,18 @@ def _rfc4511_response_class(root_op):
     else:
         cls_name = _uc_first(root_op) + 'Response'
         return getattr(rfc4511, cls_name)
+
+
+_dn_components = {
+    'searchRequest': 'baseObject',
+    'modifyRequest': 'object',
+    'bindRequest': 'name',
+}
+
+
+def _dn_component(operation: str):
+    """Get the component name containing the request DN for the given protocol operation name"""
+    return _dn_components.get(operation, 'entry')
 
 
 class Request(object):
@@ -67,4 +83,4 @@ class Request(object):
         # Should not be called until we have determined that the request has a response
         self.res_name = _response_name(self.root_op)
         self.res_cls = _rfc4511_response_class(self.root_op)
-        self.matched_dn = require_component(self.asn1_obj, _dn_components.get(self.operation, 'entry'), str)
+        self.matched_dn = require_component(self.asn1_obj, _dn_component(self.operation), str)

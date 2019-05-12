@@ -13,7 +13,7 @@ from . import search_results, constants
 from .backend import AbstractBackend
 from .dn import parse_dn
 from .exceptions import *
-from .request import Request
+from .request import Request, is_request
 from .utils import require_component, int_component
 
 
@@ -57,17 +57,6 @@ def _handler_method_name(root_op: str):
     return '_handle_' + root_op
 
 
-def _is_request(operation: str):
-    """Check that `operation` names a request protocol operation"""
-    # assumes that `operation` was successfully retrieved from a rfc4511.ProtocolOp
-    if operation == 'extendedReq':
-        return True
-    elif operation.endswith('Request'):
-        return True
-    else:
-        return False
-
-
 class ClientLogger(object):
     """Proxy logger that prefixes log messages with a client identifier"""
 
@@ -82,6 +71,9 @@ class ClientLogger(object):
             return log_func(f'{self._peername}: {msg}')
 
         return log
+
+    def exception(self, msg, e):
+        self.error(f'{msg}: {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
 
 
 class ClientHandler(object):
@@ -178,7 +170,7 @@ class ClientHandler(object):
             except SubstrateUnderrunError:
                 continue
             except (PyAsn1Error, DisconnectionProtocolError) as e:
-                self.log.error(f'Caught fatal disconnect error {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
+                self.log.exception('Caught fatal disconnect error', e)
                 xr = ldap_result(rfc4511.ExtendedResponse, 'protocolError', message=str(e))
                 xr.setComponentByName('responseName', constants.OID_NOTICE_OF_DISCONNECTION)
                 op = protocol_op('extendedResp', xr)
@@ -187,7 +179,7 @@ class ClientHandler(object):
                 return
 
     async def _respond_to_request(self, req):
-        if not _is_request(req.operation):
+        if not is_request(req.operation):
             raise DisconnectionProtocolError(f'{req.id} does not appear to contain a standard LDAP request')
 
         try:
@@ -195,15 +187,16 @@ class ClientHandler(object):
             handler_method = getattr(self, _handler_method_name(req.root_op), self._handle_generic)
             await handler_method(req)
         except ResultCodeError as e:
-            self.log.info(f'{req.operation} {req.id} failed with result {e.RESULT_CODE}: {e}\n{traceback.format_exc()}')
+            self.log.info(f'{req.operation} {req.id} failed gracefully with result {e.RESULT_CODE}: '
+                          f'{e}\n{traceback.format_exc()}')
             await self.send_ldap_result(req, e.RESULT_CODE, str(e))
         except LDAPError as e:
-            self.log.error(f'Sending error for {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
+            self.log.exception(f'{req.operation} {req.id} Sending error response due to', e)
             await self.send_ldap_result(req, 'other', message=str(e))
         except PyAsn1Error:
             raise
         except (Exception, InternalError) as e:
-            self.log.error(f'{req.operation} {req.id} Got {e.__class__.__name__}: {e}\n{traceback.format_exc()}')
+            self.log.exception(f'{req.operation} {req.id} exception', e)
             await self.send_ldap_result(req, 'other', 'Internal server error')
 
     async def _handle_generic(self, req):
@@ -217,6 +210,15 @@ class ClientHandler(object):
     async def _handle_bind(self, req):
         # TODO bind for real
         await self.send_ldap_result(req, 'success')
+        bind_name = require_component(req, 'name', str)
+        auth_choice = require_component(req, 'authentication')
+        auth_type = auth_choice.getName()
+        if auth_type == 'simple':
+            pass
+        elif auth_type == 'sasl':
+            pass
+        else:
+            raise AuthMethodNotSupportedError(f'Authentication method "{auth_type}" is not supported')
         self.log.info('Client has bound')
 
     async def _handle_search(self, req):
