@@ -1,3 +1,6 @@
+# this is a prototype config file for exploring and defining the config language used
+# it may or may not represent a working config when taken in its entirety
+
 logging:
   # standard python logging dict config below here
   # https://docs.python.org/3/library/logging.config.html#logging-config-dictschema
@@ -16,6 +19,39 @@ schema:
 dit:
   "o=laurelin":
     data_backend: memory
+auth_backends:
+  simple:
+    type: simple
+    storage: ldap
+    name_maps:
+      # the first matching search will be used
+      - search: '^(.+)$'
+        replace: '$1'
+
+    # gets ANDed with (userPassword=*)
+    ldap_filter: '(objectClass=user)'
+
+    # one of the laurelin.ldap.DerefAliases constant names
+    ldap_deref_aliases: NEVER
+
+    ldap_multiple_passwords: False
+  flat_file:
+    type: simple
+    storage: flat
+
+    flat_filename: /etc/laurelin/server/passwords
+
+    # decides when to read in the flat file
+    # valid options:
+    #  startup - read in the file once when the server starts up
+    #  auth - read in the file for each authentication attempt
+    flat_read_mode: startup
+auth_stack:
+  - backend: simple
+    error: break
+    user_unknown: continue
+    bad_creds: break
+  - backend: flat_file
 servers:
   "ldap://0.0.0.0:389": {}
   "ldapi:///var/run/laurelin-server.socket": {}

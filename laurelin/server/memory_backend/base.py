@@ -23,14 +23,17 @@ class MemoryBackend(AbstractBackend):
     async def search(self, search_request):
         base_dn = require_component(search_request, 'baseObject', str)
         scope = require_component(search_request, 'scope')
-
-        if base_dn == '' and scope == Scope.BASE:
-            raise InternalError('Root DSE search request was dispatched to backend')
-
         fil = optional_component(search_request, 'filter')
         attrs = list_component(search_request, 'attributes')
         types_only = bool_component(search_request, 'typesOnly', default=False)
         deref_aliases = optional_component(search_request, 'derefAliases')
+
+        async for res in self.search_params(base_dn, scope, fil, attrs, deref_aliases, types_only):
+            yield res
+
+    async def search_params(self, base_dn, scope, fil=None, attrs=None, deref_aliases=None, types_only=False):
+        if base_dn == '' and scope == Scope.BASE:
+            raise InternalError('Root DSE search request was dispatched to backend')
 
         base_obj = self._dit.get(base_dn)
         if deref_aliases == DerefAliases.BASE or deref_aliases == DerefAliases.ALWAYS:

@@ -10,8 +10,6 @@ from pyasn1.codec.ber.encoder import encode as ber_encode
 from pyasn1.error import PyAsn1Error, SubstrateUnderrunError
 
 from . import search_results, constants
-from .backend import AbstractBackend
-from .dn import parse_dn
 from .exceptions import *
 from .request import Request, is_request
 from .utils import require_component, int_component
@@ -79,18 +77,20 @@ class ClientLogger(object):
 class ClientHandler(object):
     RECV_BUFFER = 1024
 
-    def __init__(self, reader, writer, dit):
+    def __init__(self, reader, writer, globals):
         self.reader = reader
         self.writer = writer
-        self.dit = dit
+        self.G = globals
         self.log = ClientLogger(writer.get_extra_info('peername'))
+
+        self.authenticated_name = None
 
         # Right now this is going to be the same for every client so maybe do once in LaurelinServer/LDAPServer
         #  BUT depending on other things it may be different for some later, so TBD
 
         nc = []
         dnc = []
-        for dn, backend in self.dit.items():
+        for dn, backend in self.G.dit.items():
             nc.append(str(dn))
             if backend.default:
                 if not dnc:
@@ -104,10 +104,6 @@ class ClientHandler(object):
         if not nc:
             raise ConfigError('No DIT nodes configured')
 
-        # sorted list of DIT suffixes - most RDNs first, otherwise order does not matter
-        self.suffixes = list(self.dit.keys())
-        self.suffixes.sort(key=lambda s: len(s), reverse=True)
-
         self.root_dse = search_results.Entry('', {
             'namingContexts': nc,
             'defaultNamingContext': dnc,
@@ -115,15 +111,8 @@ class ClientHandler(object):
             'vendorName': ['laurelin'],
         })
 
-    def _backend(self, dn) -> (AbstractBackend, None):
-        """Obtain the backend for a given DN"""
-        if dn == '':
-            return
-        dn = parse_dn(dn)
-        for suffix in self.suffixes:
-            if dn[-len(suffix):] == suffix:
-                return self.dit[suffix]
-        raise NoSuchObjectError(f'Could not find a backend to handle the DN {dn}')
+    def _backend(self, dn):
+        return self.G.dit.backend(dn)
 
     async def send(self, lm: rfc4511.LDAPMessage):
         """Encode and send an LDAP message"""
@@ -156,7 +145,7 @@ class ClientHandler(object):
                     self.log.info(f'Received message_id={req.id} operation={req.operation}')
 
                     if req.operation == 'unbindRequest':
-                        # TODO actually unbind
+                        self.authenticated_name = None
                         self.log.info('Client has unbound')
                         return
                     elif req.operation == 'abandonRequest':
@@ -208,18 +197,11 @@ class ClientHandler(object):
         await self.send_ldap_result(req, 'success')
 
     async def _handle_bind(self, req):
-        # TODO bind for real
-        await self.send_ldap_result(req, 'success')
         bind_name = require_component(req, 'name', str)
         auth_choice = require_component(req, 'authentication')
-        auth_type = auth_choice.getName()
-        if auth_type == 'simple':
-            pass
-        elif auth_type == 'sasl':
-            pass
-        else:
-            raise AuthMethodNotSupportedError(f'Authentication method "{auth_type}" is not supported')
+        self.authenticated_name = self.G.auth_stack.authenticate(bind_name, auth_choice)
         self.log.info('Client has bound')
+        await self.send_ldap_result(req, 'success')
 
     async def _handle_search(self, req):
         # Handle Root DSE request

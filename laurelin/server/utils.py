@@ -46,6 +46,8 @@ def int_component(asn1_obj, component_ident, default=None, default_value=0):
 
 
 def list_component(asn1_obj, component_ident, default=None):
+    if default is None:
+        default = []
     return optional_component(asn1_obj, component_ident, default, seq_to_list)
 
 

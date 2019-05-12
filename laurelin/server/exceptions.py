@@ -96,3 +96,27 @@ class AliasError(ResultCodeError):
 
 class AuthMethodNotSupportedError(ResultCodeError):
     RESULT_CODE = 'authMethodNotSupported'
+
+
+class InvalidCredentialsError(ResultCodeError):
+    RESULT_CODE = 'invalidCredentials'
+
+
+class AuthError(LaurelinError):
+    STACK_KEY = None
+    DEFAULT_ACTION = None
+
+
+class AuthFailure(AuthError):
+    STACK_KEY = 'error'
+    DEFAULT_ACTION = 'break'
+
+
+class AuthNameDoesNotExist(AuthError):
+    STACK_KEY = 'user_unknown'
+    DEFAULT_ACTION = 'continue'
+
+
+class AuthInvalidCredentials(AuthError):
+    STACK_KEY = 'bad_creds'
+    DEFAULT_ACTION = 'break'

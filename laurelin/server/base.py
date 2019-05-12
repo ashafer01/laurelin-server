@@ -1,33 +1,29 @@
 import asyncio
 import logging
 import logging.config
+from .auth import AuthStack
 from .config import Config
-from .dn import parse_dn
+from .dit import DIT
 from .ldapserver import LDAPServer
 from .schema import get_schema
 
-# TODO probly gonna need to dynamically import backends
-from .memory_backend import MemoryBackend
-
-_backend_types = {
-    'memory': MemoryBackend,
-}
-
 _logger_name = 'laurelin.server'
+
+
+class LaurelinGlobals(object):
+    def __init__(self, conf):
+        self.dit = DIT(conf['dit'])
+        self.auth_stack = AuthStack(conf['auth_stack'], conf['auth_backends'], self.dit)
 
 
 class LaurelinServer(object):
     def __init__(self, conf: Config):
         self.logger = logging.getLogger(_logger_name)
 
-        dit = {}
-        for suffix, node_conf in conf['dit'].items():
-            dit[parse_dn(suffix)] = _backend_types[node_conf['data_backend']](suffix, Config(node_conf))
-
         self.servers = []
         for uri, server_conf in conf['servers'].items():
             self.logger.debug(f'Setting up LDAPServer {uri}')
-            self.servers.append(LDAPServer(uri, Config(server_conf), dit))
+            self.servers.append(LDAPServer(uri, Config(server_conf), LaurelinGlobals(conf)))
 
         self.logger.debug('LaurelinServer init complete')
 

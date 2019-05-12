@@ -18,10 +18,10 @@ class LDAPServer(object):
     DEFAULT_SSL_CLIENT_VERIFY_CA_PATH = None
     DEFAULT_SSL_CLIENT_VERIFY_CHECK_CRL = True
 
-    def __init__(self, uri: str, conf: Config, dit: dict):
+    def __init__(self, uri: str, conf: Config, globals):
         self.uri = uri
         self.conf = conf
-        self.dit = dit
+        self.G = globals
         self.server = None
 
     async def run(self):
@@ -41,7 +41,7 @@ class LDAPServer(object):
             await self.server.serve_forever()
 
     async def client(self, reader, writer):
-        await ClientHandler(reader, writer, self.dit).run()
+        await ClientHandler(reader, writer, self.G).run()
 
     def _create_ssl_context(self):
         cert_filename = self.conf['certificate']

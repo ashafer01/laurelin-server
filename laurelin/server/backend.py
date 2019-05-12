@@ -8,6 +8,10 @@ class AbstractBackend(object):
         raise NotImplementedError()
         yield
 
+    async def search_params(self, base_dn, scope, fil=None, attrs=None, deref_aliases=None, types_only=False):
+        raise NotImplementedError()
+        yield
+
     async def compare(self, compare_request):
         raise NotImplementedError()
 
