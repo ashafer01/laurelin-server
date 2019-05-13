@@ -1,9 +1,9 @@
 # this is a prototype config file for exploring and defining the config language used
 # it may or may not represent a working config when taken in its entirety
 
+# standard python logging dict config below here
+# https://docs.python.org/3/library/logging.config.html#logging-config-dictschema
 logging:
-  # standard python logging dict config below here
-  # https://docs.python.org/3/library/logging.config.html#logging-config-dictschema
   version: 1
   handlers:
     console:
@@ -13,19 +13,45 @@ logging:
     "laurelin.server":
       level: DEBUG
       handlers: [console]
+
+# local schema definitions and other schema options
 schema:
   directory: /some/dir
   allow_undefined_attribute_types: true
+
+# dit defines the roots of the global directory information tree
 dit:
   "o=laurelin":
     data_backend: memory
+
+    # writes to the userPassword attribute will get routed to this auth_backend
+    userpassword_backend: simple
+
+# auth_backends defines available backends for authentication and credential storage
+# To be used for authentication, the backend must be named in the `auth_stack:` section
+# To allow password writes through common LDAP interfaces, the backend must be named as
+# a `userpassword_backend` in an entry in the `dit:` section
 auth_backends:
   simple:
     type: simple
     storage: ldap
+
+    # Optional
+    # name_maps will translate incoming bind names to the appropriate backend identity name
+    # bind DN -> identity
+    # Note that laurelin does not enforce that the bind name be DN-formatted
+    # This can be used to translate a simple username to a DN for ldap storage, or to translate
+    # a DN to a simple username to save space in flat storage, etc.
     name_maps:
-      # the first matching search will be used
-      - search: '^(.+)$'
+      - search: '^uid=([^,]+),dc=example,dc=com$'
+        replace: '$1'
+
+    # Optional
+    # object_maps are used when write operations to a userPassword attribute on an
+    # LDAP object need to be translated to a auth backend identity (object DN -> identity)
+    # Only applies when userpassword_backend in a DIT config is set to this auth backend
+    object_maps:
+      - search: 'uid=([^,]+)'
         replace: '$1'
 
     # gets ANDed with (userPassword=*)
@@ -46,12 +72,22 @@ auth_backends:
     #  startup - read in the file once when the server starts up
     #  auth - read in the file for each authentication attempt
     flat_read_mode: startup
+
+# auth_stack defines the order in which to try one or more auth_backends, as well
+# as how to proceed through the stack in various conditions
 auth_stack:
+  # try backend named "simple" first
   - backend: simple
+
+    # these correspond to the default actions
     error: break
     user_unknown: continue
     bad_creds: break
+
+  # then check for creds stored in a flat file if the user was not found before
   - backend: flat_file
+
+# all of the socket listeners to start up
 servers:
   "ldap://0.0.0.0:389": {}
   "ldapi:///var/run/laurelin-server.socket": {}
