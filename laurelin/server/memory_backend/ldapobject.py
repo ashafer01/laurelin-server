@@ -1,5 +1,5 @@
 from laurelin.ldap.modify import Mod
-from laurelin.ldap.protoutils import split_unescaped, seq_to_list
+from laurelin.ldap.protoutils import split_unescaped
 
 from .attrsdict import AttrsDict
 
@@ -182,53 +182,58 @@ class LDAPObject(object):
         except ValueError:
             pass
 
-    def modify(self, changes):
-        for i in range(len(changes)):
-            change = changes.getComponentByPosition(i)
-            op = change.getComponentByName('operation')
-            mod = change.getComponentByName('modification')
-            attr_type = str(mod.getComponentByName('type'))
-            attr_vals = seq_to_list(mod.getComponentByName('vals'))
+    def modify_op(self, op, attr_type, attr_vals):
+        if op == Mod.ADD:
+            self.add_attrs(attr_type, attr_vals)
+        elif op == Mod.REPLACE:
+            self.replace_attrs(attr_type, attr_vals)
+        elif op == Mod.DELETE:
+            self.delete_attrs(attr_type, attr_vals)
+        else:
+            raise ProtocolError('Invalid modify operation')
 
+    def add_attrs(self, attr_type, attr_vals):
+        vals = self.attrs.setdefault(attr_type)
+        for val in attr_vals:
+            if val in vals:
+                # the client asked us to add a value equivalent to an existing one
+                continue
+            vals.append(val)
+
+    def replace_attrs(self, attr_type, attr_vals):
+        if not attr_vals:
             try:
-                if op == Mod.ADD:
-                    vals = self.attrs.setdefault(attr_type)
-                    for val in attr_vals:
-                        if val in vals:
-                            # the client asked us to add a value equivalent to an existing one
-                            continue
-                        vals.append(val)
-                elif op == Mod.REPLACE:
-                    if not attr_vals:
-                        del self.attrs[attr_type]
-                    else:
-                        self.attrs[attr_type] = attr_vals
-                elif op == Mod.DELETE:
-                    if not attr_vals:
-                        del self.attrs[attr_type]
-                    else:
-                        for val in attr_vals:
-                            try:
-                                self.attrs[attr_type].remove(val)
-                            except ValueError:
-                                # the client asked us to delete a value that does not exist
-                                pass
-                else:
-                    raise ProtocolError('Invalid modify operation')
+                del self.attrs[attr_type]
             except KeyError:
-                raise NoSuchAttributeError(f'No such attribute {attr_type} on object {self.dn_str}')
+                pass
+        else:
+            self.attrs[attr_type] = attr_vals
 
-    async def onelevel(self, filter=None):
+    def delete_attrs(self, attr_type, attr_vals):
+        try:
+            if not attr_vals:
+                del self.attrs[attr_type]
+            else:
+                for val in attr_vals:
+                    try:
+                        self.attrs[attr_type].remove(val)
+                    except ValueError:
+                        # the client asked us to delete a value that does not exist
+                        pass
+        except KeyError:
+            pass
+
+    def onelevel(self, filter=None):
         if self.matches_filter(filter):
             yield self
         for obj in self.children.values():
             if obj.matches_filter(filter):
                 yield obj
 
-    async def subtree(self, filter=None):
+    def subtree(self, filter=None):
         if self.matches_filter(filter):
             yield self
         for child in self.children.values():
-            async for obj in child.subtree():
+            for obj in child.subtree():
                 if obj.matches_filter(filter):
                     yield obj

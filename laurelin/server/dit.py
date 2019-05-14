@@ -1,4 +1,4 @@
-from .backend import AbstractBackend
+from .backend import DataBackend
 from .config import Config
 from .dn import parse_dn
 from .exceptions import *
@@ -20,7 +20,7 @@ class DIT(dict):
         self.suffixes = list(self.keys())
         self.suffixes.sort(key=lambda s: len(s), reverse=True)
 
-    def backend(self, dn) -> (AbstractBackend, None):
+    def backend(self, dn) -> (DataBackend, None):
         """Obtain the backend for a given DN"""
         if dn == '':
             return

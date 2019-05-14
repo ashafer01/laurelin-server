@@ -46,7 +46,7 @@ def protocol_op(op_name: str, obj):
 
 
 def _backend_method_name(root_op: str):
-    """Convert a root operation string to the name of a method on an AbstractBackend"""
+    """Convert a root operation string to the name of a method on an DataBackend"""
     return root_op.replace('DN', '_dn')
 
 

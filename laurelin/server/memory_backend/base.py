@@ -3,37 +3,34 @@ In-memory ephemeral LDAP backend store
 """
 import logging
 from laurelin.ldap.constants import Scope, DerefAliases
-from laurelin.ldap.protoutils import split_unescaped
+from laurelin.ldap.filter import parse as parse_filter
+from laurelin.ldap.protoutils import split_unescaped, seq_to_list
 
 from .ldapobject import LDAPObject
 from .. import search_results
-from ..backend import AbstractBackend
+from ..backend import DataBackend
 from ..dn import parse_rdn
 from ..exceptions import *
-from ..utils import optional_component, bool_component, list_component, require_component
+from ..utils import require_component, str_component
 
 logger = logging.getLogger('laurelin.server.memory_backend')
 
 
-class MemoryBackend(AbstractBackend):
+class MemoryBackend(DataBackend):
     def __init__(self, suffix, conf):
-        AbstractBackend.__init__(self, suffix, conf)
+        DataBackend.__init__(self, suffix, conf)
         self._dit = LDAPObject(suffix)
 
-    async def search(self, search_request):
-        base_dn = require_component(search_request, 'baseObject', str)
-        scope = require_component(search_request, 'scope')
-        fil = optional_component(search_request, 'filter')
-        attrs = list_component(search_request, 'attributes')
-        types_only = bool_component(search_request, 'typesOnly', default=False)
-        deref_aliases = optional_component(search_request, 'derefAliases')
+    async def search_params(self, base_dn, scope, fil=None, attrs=None, deref_aliases=None, types_only=False,
+                            limit=None, time_limit=None):
+        if limit is not None or time_limit is not None:
+            raise InternalError('MemoryBackend does not implement search limits')
 
-        async for res in self.search_params(base_dn, scope, fil, attrs, deref_aliases, types_only):
-            yield res
-
-    async def search_params(self, base_dn, scope, fil=None, attrs=None, deref_aliases=None, types_only=False):
         if base_dn == '' and scope == Scope.BASE:
             raise InternalError('Root DSE search request was dispatched to backend')
+
+        if fil is not None:
+            fil = parse_filter(fil)
 
         base_obj = self._dit.get(base_dn)
         if deref_aliases == DerefAliases.BASE or deref_aliases == DerefAliases.ALWAYS:
@@ -51,7 +48,7 @@ class MemoryBackend(AbstractBackend):
             raise ValueError('scope')
 
         deref_search = (deref_aliases == DerefAliases.SEARCH or deref_aliases == DerefAliases.ALWAYS)
-        async for item in result_gen:
+        for item in result_gen:
             if deref_search:
                 item = self.deref_object(item)
             yield item.to_result(attrs, types_only)
@@ -68,12 +65,7 @@ class MemoryBackend(AbstractBackend):
         except ObjectNotFound:
             raise AliasError(f'Aliased object {aliased_dn} does not exist')
 
-    async def compare(self, compare_request):
-        dn = require_component(compare_request, 'entry', str)
-        ava = require_component(compare_request, 'ava')
-        attr_type = require_component(ava, 'attributeDesc', str)
-        attr_value = require_component(ava, 'assertionValue', str)  # TODO binary support
-
+    async def compare_params(self, dn, attr_type, attr_value):
         obj = self._dit.get(dn)
         return attr_type in obj.attrs and attr_value in obj.attrs[attr_type]
 
@@ -81,26 +73,25 @@ class MemoryBackend(AbstractBackend):
         dn = require_component(modify_request, 'object', str)
         changes = require_component(modify_request, 'changes')
         obj = self._dit.get(dn)
-        obj.modify(changes)
+        for i in range(len(changes)):
+            change = changes.getComponentByPosition(i)
+            op = change.getComponentByName('operation')
+            mod = change.getComponentByName('modification')
+            attr_type = str(mod.getComponentByName('type'))
+            attr_vals = seq_to_list(mod.getComponentByName('vals'))
+            obj.modify_op(op, attr_type, attr_vals)
+
+    async def modify_params(self, dn, mod_list):
+        obj = self._dit.get(dn)
+        for op, attr_type, attr_vals in mod_list:
+            obj.modify_op(op, attr_type, attr_vals)
 
     def _get_rdn_and_parent(self, dn):
         rdn, parent_dn = split_unescaped(dn, ',', 1)
         parent_obj = self._dit.get(parent_dn)
         return parse_rdn(rdn), parent_obj
 
-    async def add(self, add_request):
-        dn = require_component(add_request, 'entry', str)
-        al = require_component(add_request, 'attributes')
-        attrs = {}
-        for i in range(len(al)):
-            attr = require_component(al, i)
-            attr_type = require_component(attr, 'type', str)
-            attr_vals = []
-            vals = require_component(attr, 'vals')
-            for j in range(len(vals)):
-                attr_vals.append(require_component(vals, j, str))
-            attrs[attr_type] = attr_vals
-
+    async def add_params(self, dn, attrs):
         rdn, parent_obj = self._get_rdn_and_parent(dn)
         parent_obj.add_child(rdn, attrs)
 
@@ -109,14 +100,9 @@ class MemoryBackend(AbstractBackend):
         rdn, parent_obj = self._get_rdn_and_parent(dn)
         parent_obj.delete_child(rdn)
 
-    async def mod_dn(self, mod_dn_request):
-        dn = require_component(mod_dn_request, 'entry', str)
-        new_rdn = require_component(mod_dn_request, 'newrdn', str)
-        del_old_rdn_attr = require_component(mod_dn_request, 'deleteoldrdn', bool)
-        _new_parent = mod_dn_request.getComponentByName('newSuperior')
-
+    async def mod_dn_params(self, dn, new_rdn, del_old_rdn_attr, new_parent=None):
         rdn, parent_obj = self._get_rdn_and_parent(dn)
-        if _new_parent.isValue:
+        if new_parent:
             new_parent_obj = self._dit.get(str(_new_parent))
             obj = parent_obj.get_child(rdn)
             parent_obj.del_child_ref(rdn)

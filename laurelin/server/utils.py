@@ -39,7 +39,7 @@ def bool_component(asn1_obj, component_ident, default=None):
 
 def int_component(asn1_obj, component_ident, default=None, default_value=0):
     val = optional_component(asn1_obj, component_ident, default, int)
-    if val == default_value:
+    if default_value is not None and val == default_value:
         return default
     else:
         return val
