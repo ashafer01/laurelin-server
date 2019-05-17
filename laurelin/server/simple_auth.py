@@ -6,10 +6,10 @@ from laurelin.ldap import rfc4511, Scope, DerefAliases
 from laurelin.ldap.filter import parse as parse_filter
 from laurelin.ldap.utils import CaseIgnoreDict
 
-from . import search_results
 from .config import Config
 from .dit import DIT
 from .exceptions import *
+from .internal_client import InternalClient
 from .simple_passwords import check_password
 from .utils import optional_component
 
@@ -22,7 +22,7 @@ class LDAPStorage(object):
     """Utilizes standard userPassword attributes on objects in global DIT"""
 
     def __init__(self, auth_conf: Config, dit: DIT):
-        self.dit = dit
+        self.client = InternalClient(dit)
 
         try:
             custom_filter = auth_conf['ldap_filter']
@@ -43,16 +43,10 @@ class LDAPStorage(object):
         self.multi = auth_conf.get('ldap_multiple_passwords', False)
 
     async def authenticate(self, mapped_name: str, input_password: str):
-        backend = self.dit.backend(mapped_name)
         user_res = None
-        async for res in backend.search_params(mapped_name,
-                                               Scope.BASE,
-                                               fil=self.filter,
-                                               deref_aliases=self.deref,
-                                               attrs=_return_attrs):
-            if isinstance(res, search_results.Entry):
+        async for res in self.client.search(mapped_name, Scope.BASE, fil=self.filter, deref_aliases=self.deref,
+                                            attrs=_return_attrs):
                 user_res = res
-                break
         if not user_res:
             raise AuthNameDoesNotExist()
 

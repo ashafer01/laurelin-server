@@ -10,6 +10,8 @@ from pyasn1.codec.ber.encoder import encode as ber_encode
 from pyasn1.error import PyAsn1Error, SubstrateUnderrunError
 
 from . import search_results, constants
+from .auth import AuthStack
+from .dit import DIT
 from .exceptions import *
 from .request import Request, is_request
 from .utils import require_component, int_component
@@ -77,10 +79,11 @@ class ClientLogger(object):
 class ClientHandler(object):
     RECV_BUFFER = 1024
 
-    def __init__(self, reader, writer, globals):
+    def __init__(self, reader, writer, dit: DIT, auth_stack: AuthStack):
         self.reader = reader
         self.writer = writer
-        self.G = globals
+        self.dit = dit
+        self.auth_stack = auth_stack
         self.log = ClientLogger(writer.get_extra_info('peername'))
 
         self.authenticated_name = None
@@ -90,7 +93,7 @@ class ClientHandler(object):
 
         nc = []
         dnc = []
-        for dn, backend in self.G.dit.items():
+        for dn, backend in self.dit.items():
             nc.append(str(dn))
             if backend.default:
                 if not dnc:
@@ -110,9 +113,6 @@ class ClientHandler(object):
             'supportedLDAPVersion': ['3'],
             'vendorName': ['laurelin'],
         })
-
-    def _backend(self, dn):
-        return self.G.dit.backend(dn)
 
     async def send(self, lm: rfc4511.LDAPMessage):
         """Encode and send an LDAP message"""
@@ -190,7 +190,7 @@ class ClientHandler(object):
 
     async def _handle_generic(self, req):
         # This handles all the normal methods
-        backend_method = getattr(self._backend(req.matched_dn), _backend_method_name(req.root_op))
+        backend_method = getattr(self.dit.backend(req.matched_dn), _backend_method_name(req.root_op))
         self.log.info(f'Received {req.operation}')
         await backend_method(req.asn1_obj)
         self.log.debug(f'{req.operation} {req.id} successful')
@@ -199,7 +199,7 @@ class ClientHandler(object):
     async def _handle_bind(self, req):
         bind_name = require_component(req, 'name', str)
         auth_choice = require_component(req, 'authentication')
-        self.authenticated_name = self.G.auth_stack.authenticate(bind_name, auth_choice)
+        self.authenticated_name = self.auth_stack.authenticate(bind_name, auth_choice)
         self.log.info('Client has bound')
         await self.send_ldap_result(req, 'success')
 
@@ -220,7 +220,7 @@ class ClientHandler(object):
         try:
             n = 0
             async with timeout(time_limit):
-                async for result in self._backend(req.matched_dn).search(req.asn1_obj):
+                async for result in self.dit.backend(req.matched_dn).search(req.asn1_obj):
                     lm = pack(req.id, result.to_proto())  # TODO controls?
                     await self.send(lm)
                     n += 1
@@ -239,7 +239,7 @@ class ClientHandler(object):
                                          'exceeded during search request')
 
     async def _handle_compare(self, req):
-        cmp = await self._backend(req.matched_dn).compare(req.asn1_obj)
+        cmp = await self.dit.backend(req.matched_dn).compare(req.asn1_obj)
 
         if cmp is True:
             result = 'compareTrue'

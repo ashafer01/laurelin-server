@@ -4,9 +4,11 @@ import ssl
 
 from laurelin.ldap.net import parse_host_uri, host_port
 
-from .exceptions import *
+from .auth import AuthStack
 from .config import Config
 from .client_handler import ClientHandler
+from .dit import DIT
+from .exceptions import *
 
 logger = logging.getLogger('laurelin.server')
 
@@ -18,10 +20,11 @@ class LDAPServer(object):
     DEFAULT_SSL_CLIENT_VERIFY_CA_PATH = None
     DEFAULT_SSL_CLIENT_VERIFY_CHECK_CRL = True
 
-    def __init__(self, uri: str, conf: Config, globals):
+    def __init__(self, uri: str, conf: Config, dit: DIT, auth_stack: AuthStack):
         self.uri = uri
         self.conf = conf
-        self.G = globals
+        self.dit = dit
+        self.auth_stack = auth_stack
         self.server = None
 
     async def run(self):
@@ -41,7 +44,7 @@ class LDAPServer(object):
             await self.server.serve_forever()
 
     async def client(self, reader, writer):
-        await ClientHandler(reader, writer, self.G).run()
+        await ClientHandler(reader, writer, self.dit, self.auth_stack).run()
 
     def _create_ssl_context(self):
         cert_filename = self.conf['certificate']

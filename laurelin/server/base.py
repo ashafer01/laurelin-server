@@ -10,20 +10,17 @@ from .schema import get_schema
 _logger_name = 'laurelin.server'
 
 
-class LaurelinGlobals(object):
-    def __init__(self, conf):
-        self.dit = DIT(conf['dit'])
-        self.auth_stack = AuthStack(conf['auth_stack'], conf['auth_backends'], self.dit)
-
-
 class LaurelinServer(object):
     def __init__(self, conf: Config):
         self.logger = logging.getLogger(_logger_name)
 
+        dit = DIT(conf['dit'])
+        auth_stack = AuthStack(conf['auth_stack'], conf['auth_backends'], dit)
+
         self.servers = []
         for uri, server_conf in conf['servers'].items():
             self.logger.debug(f'Setting up LDAPServer {uri}')
-            self.servers.append(LDAPServer(uri, Config(server_conf), LaurelinGlobals(conf)))
+            self.servers.append(LDAPServer(uri, Config(server_conf), dit, auth_stack))
 
         self.logger.debug('LaurelinServer init complete')
 
