@@ -1,8 +1,8 @@
 import re
 import warnings
 
-from ..exceptions import *
-from ..schema import get_schema
+from .exceptions import *
+from .schema import get_schema
 
 with warnings.catch_warnings():
     warnings.simplefilter('ignore')

@@ -1,3 +1,4 @@
+import logging
 import re
 from base64 import b64decode
 
@@ -13,6 +14,7 @@ from .internal_client import InternalClient
 from .simple_passwords import check_password
 from .utils import optional_component
 
+logger = logging.getLogger(__name__)
 
 _main_filter = '(userPassword=*)'
 _return_attrs = ['userPassword']
@@ -42,11 +44,11 @@ class LDAPStorage(object):
 
         self.multi = auth_conf.get('ldap_multiple_passwords', False)
 
-    async def authenticate(self, mapped_name: str, input_password: str):
+    async def _get_pass_attr(self, mapped_name: str):
         user_res = None
         async for res in self.client.search(mapped_name, Scope.BASE, fil=self.filter, deref_aliases=self.deref,
                                             attrs=_return_attrs):
-                user_res = res
+            user_res = res
         if not user_res:
             raise AuthNameDoesNotExist()
 
@@ -58,6 +60,10 @@ class LDAPStorage(object):
 
         if not self.multi and len(pass_attr) > 1:
             raise AuthFailure('Multiple userPassword values are present but ldap_multiple_passwords is False')
+        return pass_attr
+
+    async def authenticate(self, mapped_name: str, input_password: str):
+        pass_attr = await self._get_pass_attr(mapped_name)
 
         for stored_pw in pass_attr:
             match = check_password(input_password, stored_pw)
@@ -126,12 +132,14 @@ class SimpleAuthBackend(object):
         mapped_name = self.map_auth_name(name)
         auth_type = auth_choice.getName()
         if auth_type == 'simple':
+            logger.debug('Received credentials over simple auth')
             input_pw = str(auth_type.getComponent())
         elif auth_type == 'sasl':
             sasl_cred = auth_type.getComponent()
             input_pw = optional_component(sasl_cred, 'credentials', val_type=str)
             if input_pw is None:
                 raise AuthFailure('No credentials value set in sasl auth request')
+            logger.debug('Received credentials over SASL auth')
         else:
             raise AuthMethodNotSupportedError(f'Authentication type "{auth_type}" is not supported')
         await self.storage.authenticate(mapped_name, input_pw)

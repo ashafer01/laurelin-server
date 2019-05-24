@@ -1,10 +1,15 @@
 from laurelin.ldap import rfc4511
 
+from .attrsdict import AttrsDict
+
 
 class Entry(object):
     def __init__(self, dn: str, attrs_dict: dict):
         self.dn = dn
-        self.attrs = attrs_dict
+        if isinstance(attrs_dict, AttrsDict):
+            self.attrs = attrs_dict
+        else:
+            self.attrs = AttrsDict(attrs_dict)
         # TODO controls?
 
     def to_proto(self):

@@ -1,7 +1,7 @@
 from laurelin.ldap.modify import Mod
 from laurelin.ldap.protoutils import split_unescaped
 
-from .attrsdict import AttrsDict
+from ..attrsdict import AttrsDict
 
 from .. import search_results
 from ..dn import parse_rdn, parse_dn
