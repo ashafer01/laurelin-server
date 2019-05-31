@@ -33,7 +33,7 @@ setup(
         'Intended Audience :: Information Technology',
     ],
     namespace_packages=['laurelin'],
-    packages=find_packages(exclude=['tests']),
+    packages=find_packages(exclude=['tests', 'scripts', 'venv', 'modules']),
     install_requires=['laurelin-ldap', 'pyasn1', 'PyYAML', 'parsimonious', 'async_timeout', 'fuzzywuzzy'],
     include_package_data=True,
 )
